@@ -1,0 +1,153 @@
+{
+  "info": {
+    "name": "报表统计系统API",
+    "_postman_id": "b3b6c23c-1d5e-4b72-b985-5cbb9b6b1e00",
+    "description": "六类预约统计报表API测试（已支持申请科室 applyOrgIds 与 执行科室 execOrgIds 多值查询）",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "门诊预约统计（按多执行科室与多申请科室过滤）",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:5001/api/reports/outpatient-appointments?startDate=2024-08-01&endDate=2024-08-21&groupBy=day&execOrgIds=30300&execOrgIds=30500&applyOrgIds=41400&applyOrgIds=41600",
+          "protocol": "https",
+          "host": ["localhost"],
+          "port": "5001",
+          "path": ["api", "reports", "outpatient-appointments"],
+          "query": [
+            { "key": "startDate", "value": "2024-08-01" },
+            { "key": "endDate", "value": "2024-08-21" },
+            { "key": "groupBy", "value": "day" },
+            { "key": "execOrgIds", "value": "30300" },
+            { "key": "execOrgIds", "value": "30500" },
+            { "key": "applyOrgIds", "value": "41400" },
+            { "key": "applyOrgIds", "value": "41600" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "医技预约统计（按多执行科室与多申请科室过滤）",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:5001/api/reports/medical-tech-appointments?startDate=2024-08-01&endDate=2024-08-21&groupBy=month&execOrgIds=30300&execOrgIds=31200&applyOrgIds=41400&applyOrgIds=41600&examTypes=CT&examTypes=DR",
+          "protocol": "https",
+          "host": ["localhost"],
+          "port": "5001",
+          "path": ["api", "reports", "medical-tech-appointments"],
+          "query": [
+            { "key": "startDate", "value": "2024-08-01" },
+            { "key": "endDate", "value": "2024-08-21" },
+            { "key": "groupBy", "value": "month" },
+            { "key": "execOrgIds", "value": "30300" },
+            { "key": "execOrgIds", "value": "31200" },
+            { "key": "applyOrgIds", "value": "41400" },
+            { "key": "applyOrgIds", "value": "41600" },
+            { "key": "examTypes", "value": "CT" },
+            { "key": "examTypes", "value": "DR" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "医技预约来源统计（含多科室过滤）",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:5001/api/reports/medical-tech-sources?startDate=2024-08-01&endDate=2024-08-21&groupBy=day&execOrgIds=30300&execOrgIds=31200&applyOrgIds=41400&sourceTypes=门诊&sourceTypes=住院",
+          "protocol": "https",
+          "host": ["localhost"],
+          "port": "5001",
+          "path": ["api", "reports", "medical-tech-sources"],
+          "query": [
+            { "key": "startDate", "value": "2024-08-01" },
+            { "key": "endDate", "value": "2024-08-21" },
+            { "key": "groupBy", "value": "day" },
+            { "key": "execOrgIds", "value": "30300" },
+            { "key": "execOrgIds", "value": "31200" },
+            { "key": "applyOrgIds", "value": "41400" },
+            { "key": "sourceTypes", "value": "门诊" },
+            { "key": "sourceTypes", "value": "住院" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "医技检查项目明细统计（含多科室过滤）",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:5001/api/reports/medical-tech-items?startDate=2024-08-01&endDate=2024-08-21&groupBy=day&execOrgIds=30300&execOrgIds=31200&applyOrgIds=41400&itemCodes=1001&itemCodes=1002",
+          "protocol": "https",
+          "host": ["localhost"],
+          "port": "5001",
+          "path": ["api", "reports", "medical-tech-items"],
+          "query": [
+            { "key": "startDate", "value": "2024-08-01" },
+            { "key": "endDate", "value": "2024-08-21" },
+            { "key": "groupBy", "value": "day" },
+            { "key": "execOrgIds", "value": "30300" },
+            { "key": "execOrgIds", "value": "31200" },
+            { "key": "applyOrgIds", "value": "41400" },
+            { "key": "itemCodes", "value": "1001" },
+            { "key": "itemCodes", "value": "1002" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "挂号预约时段分布统计（含多科室过滤）",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:5001/api/reports/appointment-time-distribution?startDate=2024-08-01&endDate=2024-08-21&groupBy=day&timeInterval=hour&execOrgIds=30300&execOrgIds=30500&applyOrgIds=41400",
+          "protocol": "https",
+          "host": ["localhost"],
+          "port": "5001",
+          "path": ["api", "reports", "appointment-time-distribution"],
+          "query": [
+            { "key": "startDate", "value": "2024-08-01" },
+            { "key": "endDate", "value": "2024-08-21" },
+            { "key": "groupBy", "value": "day" },
+            { "key": "timeInterval", "value": "hour" },
+            { "key": "execOrgIds", "value": "30300" },
+            { "key": "execOrgIds", "value": "30500" },
+            { "key": "applyOrgIds", "value": "41400" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "科室医生检查预约率分析（含多科室过滤）",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://localhost:5001/api/reports/doctor-appointment-analysis?startDate=2024-08-01&endDate=2024-08-21&groupBy=month&doctorIds=123&doctorIds=456&execOrgIds=30300&execOrgIds=30500&applyOrgIds=41400",
+          "protocol": "https",
+          "host": ["localhost"],
+          "port": "5001",
+          "path": ["api", "reports", "doctor-appointment-analysis"],
+          "query": [
+            { "key": "startDate", "value": "2024-08-01" },
+            { "key": "endDate", "value": "2024-08-21" },
+            { "key": "groupBy", "value": "month" },
+            { "key": "doctorIds", "value": "123" },
+            { "key": "doctorIds", "value": "456" },
+            { "key": "execOrgIds", "value": "30300" },
+            { "key": "execOrgIds", "value": "30500" },
+            { "key": "applyOrgIds", "value": "41400" }
+          ]
+        }
+      }
+    }
+  ]
+}
