@@ -48,6 +48,9 @@ var app = builder.Build();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
 
+// CORS 必须在路由之前、授权之前
+app.UseCors("FrontendCors");
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

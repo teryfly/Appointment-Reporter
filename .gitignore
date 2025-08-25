@@ -12,6 +12,11 @@ venv/
 .venv/
 .vs/
 bin/
+obj/
+backend/src/ReportStatisticsSystem/obj/
+Debug/
+Release/
+node_modules/
 
 # Logs
 *.log

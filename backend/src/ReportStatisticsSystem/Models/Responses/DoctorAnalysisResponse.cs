@@ -4,9 +4,9 @@ namespace Models.Responses
 {
     public class DoctorAnalysisItem
     {
-        public string Date { get; set; } = string.Empty; // 新增：时间分组键（yyyy / yyyy-MM / yyyy-MM-dd）
-        public string DoctorId { get; set; } = string.Empty;
-        public string DoctorName { get; set; } = string.Empty;
+        public string Date { get; set; } = string.Empty; // yyyy / yyyy-MM / yyyy-MM-dd
+        public string DoctorId { get; set; } = string.Empty;   // appointment.Resource_ResourceId
+        public string DoctorName { get; set; } = string.Empty; // appointment.Resource_ResourceName
         public int OrdersCount { get; set; }
         public int AppointmentCount { get; set; }
         public double AppointmentRate { get; set; }

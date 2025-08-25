@@ -33,18 +33,16 @@ namespace Services.Reports
             var appointments = await _repository.GetAppointmentsAsync(
                 request.StartDate, request.EndDate, execOrgIds, null, request.ApplyOrgIds);
 
-            // 仅保留有医生ID的记录
-            var filtered = appointments
-                .Where(a => !string.IsNullOrWhiteSpace(a.ResourceResourceId));
+            // 仅保留有医生ID的记录（appointment.Resource_ResourceId）
+            var filtered = appointments.Where(a => !string.IsNullOrWhiteSpace(a.ResourceResourceId));
 
-            // doctorIds 过滤
+            // 指定医生过滤
             if (request.DoctorIds != null && request.DoctorIds.Count > 0)
             {
                 var idsSet = request.DoctorIds.ToHashSet();
                 filtered = filtered.Where(a => a.ResourceResourceId != null && idsSet.Contains(a.ResourceResourceId));
             }
 
-            // 按时间+医生聚合
             var grouped = filtered
                 .GroupBy(a => new
                 {

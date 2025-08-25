@@ -9,7 +9,7 @@ namespace Services.Interfaces
         Task<OutpatientReportResponse> GetOutpatientAppointmentsAsync(OutpatientReportRequest request);
         Task<MedicalTechReportResponse> GetMedicalTechAppointmentsAsync(MedicalTechReportRequest request);
         Task<MedicalTechSourceReportResponse> GetMedicalTechSourcesAsync(MedicalTechSourceReportRequest request);
-        Task<MedicalTechItemDetailResponse> GetMedicalTechItemsAsync(MedicalTechItemDetailRequest request);
+        Task<MedicalTechItemResponse> GetMedicalTechItemsAsync(MedicalTechItemDetailRequest request);
         Task<OutpatientReportResponse> GetAppointmentTimeDistributionAsync(AppointmentTimeDistributionRequest request);
         Task<DoctorAnalysisResponse> GetDoctorAppointmentAnalysisAsync(DoctorAnalysisReportRequest request);
     }

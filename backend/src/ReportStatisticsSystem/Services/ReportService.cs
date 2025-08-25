@@ -37,9 +37,10 @@ namespace Services
             return await _medicalTechService.GetMedicalTechSourcesAsync(request);
         }
 
-        public async Task<MedicalTechItemDetailResponse> GetMedicalTechItemsAsync(MedicalTechItemDetailRequest request)
+        // 直接返回新结构
+        public async Task<MedicalTechItemResponse> GetMedicalTechItemsAsync(MedicalTechItemDetailRequest request)
         {
-            return await _medicalTechService.GetMedicalTechItemsAsync(request);
+            return await _medicalTechService.GetMedicalTechItemsV2Async(request);
         }
 
         public async Task<OutpatientReportResponse> GetAppointmentTimeDistributionAsync(AppointmentTimeDistributionRequest request)

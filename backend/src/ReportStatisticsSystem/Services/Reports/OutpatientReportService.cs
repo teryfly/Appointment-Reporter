@@ -13,52 +13,93 @@ namespace Services.Reports
     {
         private readonly IAppointmentRepository _repository;
         private readonly IOrganizationService _orgService;
+        private readonly IPatientService _patientService;
 
         public OutpatientReportService(
             IAppointmentRepository repository,
-            IOrganizationService orgService)
+            IOrganizationService orgService,
+            IPatientService patientService)
         {
             _repository = repository;
             _orgService = orgService;
+            _patientService = patientService;
         }
 
         public async Task<OutpatientReportResponse> GetOutpatientAppointmentsAsync(OutpatientReportRequest request)
         {
             var execOrgIds = request.ExecOrgIds ?? request.OrgIds;
-            var appointments = await _repository.GetAppointmentsAsync(request.StartDate, request.EndDate, execOrgIds, 1, request.ApplyOrgIds);
-            var orgs = await _orgService.GetOrganizationsBySceneAsync("01");
-            var groupBy = request.GroupBy;
 
-            var result = appointments
-                .GroupBy(a => new
-                {
-                    OrgId = a.OrgId,
-                    Date = groupBy == "year" ? a.CreateTime.Year.ToString()
-                        : groupBy == "month" ? $"{a.CreateTime.Year}-{a.CreateTime.Month:D2}"
-                        : a.CreateTime.ToString("yyyy-MM-dd")
-                })
+            // 第一次：只查数据库，构建不含 PatientName 的结果集
+            var appointments = await _repository.GetAppointmentsAsync(
+                request.StartDate, request.EndDate, execOrgIds, 1, request.ApplyOrgIds);
+
+            var orgs = await _orgService.GetOrganizationsBySceneAsync("01");
+            var orgNameDict = orgs.ToDictionary(o => o.Id, o => o.Name);
+
+            string DateKey(DateTime dt) =>
+                request.GroupBy == "year" ? dt.Year.ToString()
+                : request.GroupBy == "month" ? $"{dt.Year}-{dt.Month:D2}"
+                : dt.ToString("yyyy-MM-dd");
+
+            var interim = appointments
+                .GroupBy(a => new { OrgId = a.OrgId, Date = DateKey(a.CreateTime) })
                 .Select(g =>
                 {
-                    var org = orgs.FirstOrDefault(o => o.Id == g.Key.OrgId);
+                    // 仅确定 PatientId（组内存在多个患者时，取出现次数最多的那个）
+                    var patientId = g.Where(x => !string.IsNullOrWhiteSpace(x.PatientId))
+                                     .GroupBy(x => x.PatientId!)
+                                     .OrderByDescending(gg => gg.Count())
+                                     .ThenBy(gg => gg.Key)
+                                     .Select(gg => gg.Key)
+                                     .FirstOrDefault() ?? string.Empty;
+
                     return new OutpatientReportItem
                     {
-                        OrgId = g.Key.OrgId,
-                        OrgName = org?.Name ?? "",
                         Date = g.Key.Date,
-                        PersonnelCount = g.Select(a => a.ResourceResourceId).Distinct().Count(),
+                        OrgId = g.Key.OrgId,
+                        OrgName = orgNameDict.TryGetValue(g.Key.OrgId, out var orgName) ? orgName : "",
+                        PersonnelCount = g.Select(a => a.ResourceResourceId)
+                                          .Where(id => !string.IsNullOrWhiteSpace(id))
+                                          .Distinct()
+                                          .Count(),
                         SlotCount = g.Count(),
                         AppointmentCount = g.Count(a => a.Status != "已取消"),
-                        CompletedCount = g.Count(a => a.Status == "已完成"),
-                        CancelledCount = g.Count(a => a.Status == "已取消"),
-                        DoctorId = null
+                        TotalCount = g.Count(),
+                        PatientId = patientId,
+                        PatientName = "未知" // 暂不填充
                     };
-                }).ToList();
+                })
+                .OrderBy(r => r.Date)
+                .ThenBy(r => r.OrgId)
+                .ToList();
+
+            // 第二次：遍历第一次结果中的 PatientId 去查 FHIR，并回填 PatientName
+            var distinctPatientIds = interim
+                .Select(r => r.PatientId)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct()
+                .ToList();
+
+            var nameMap = new Dictionary<string, string>();
+            foreach (var pid in distinctPatientIds)
+            {
+                var name = await _patientService.GetPatientNameAsync(pid);
+                nameMap[pid] = string.IsNullOrWhiteSpace(name) ? "未知" : name;
+            }
+
+            foreach (var row in interim)
+            {
+                if (!string.IsNullOrWhiteSpace(row.PatientId) && nameMap.TryGetValue(row.PatientId, out var nm))
+                    row.PatientName = nm;
+                else
+                    row.PatientName = "未知";
+            }
 
             return new OutpatientReportResponse
             {
                 Success = true,
-                Data = result,
-                Total = result.Count,
+                Data = interim,
+                Total = interim.Count,
                 Message = "查询成功"
             };
         }
@@ -80,7 +121,8 @@ namespace Services.Reports
                 .GroupBy(a => new
                 {
                     OrgId = a.OrgId,
-                    DoctorId = a.ResourceResourceId!, // 非空已在 Where 中保证
+                    DoctorId = a.ResourceResourceId!,
+                    DoctorName = a.ResourceResourceName ?? "",
                     TimeSlot = TimeSlot(a.SlotStart!.Value)
                 })
                 .Select(g =>
@@ -91,16 +133,15 @@ namespace Services.Reports
                         OrgId = g.Key.OrgId,
                         OrgName = org?.Name ?? "",
                         Date = g.Key.TimeSlot,
-                        PersonnelCount = 1, // 单医生分组下人员=1
+                        PersonnelCount = 1,
                         SlotCount = g.Count(),
                         AppointmentCount = g.Count(a => a.Status != "已取消"),
-                        CompletedCount = g.Count(a => a.Status == "已完成"),
-                        CancelledCount = g.Count(a => a.Status == "已取消"),
-                        DoctorId = g.Key.DoctorId
+                        TotalCount = g.Count(),
+                        PatientId = string.Empty,
+                        PatientName = "未知"
                     };
                 })
                 .OrderBy(r => r.OrgId)
-                .ThenBy(r => r.DoctorId)
                 .ThenBy(r => r.Date)
                 .ToList();
 

@@ -1,0 +1,98 @@
+import type {
+  OutpatientAppointmentRow,
+  MedicalTechAppointmentRow,
+  MedicalTechSourceRow,
+  MedicalExamDetailRow,
+  TimeSlotDistributionRow,
+  DoctorAppointmentRateRow,
+} from '../types/reportTypes';
+
+export async function exportOutpatientReport(data: OutpatientAppointmentRow[]) {
+  const xlsx = await import('xlsx');
+  const ws = xlsx.utils.json_to_sheet(data.map(item => ({
+    '日期': item.date,
+    '科室': item.department,
+    '医生': item.doctor,
+    '放号量（含加号）': item.totalSlots,
+    '预约量': item.appointmentCount
+  })));
+  const wb = xlsx.utils.book_new();
+  xlsx.utils.book_append_sheet(wb, ws, '门诊预约统计');
+  xlsx.writeFile(wb, `门诊预约统计_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+export async function exportMedTechReport(data: MedicalTechAppointmentRow[]) {
+  const xlsx = await import('xlsx');
+  const ws = xlsx.utils.json_to_sheet(data.map(item => ({
+    '日期': item.date,
+    '科室': item.department,
+    '检查类型': item.examType,
+    '预约量': item.appointmentCount
+  })));
+  const wb = xlsx.utils.book_new();
+  xlsx.utils.book_append_sheet(wb, ws, '医技预约统计');
+  xlsx.writeFile(wb, `医技预约统计_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+export async function exportMedTechSourceReport(data: MedicalTechSourceRow[]) {
+  const xlsx = await import('xlsx');
+  const ws = xlsx.utils.json_to_sheet(data.map(item => ({
+    '日期': item.date,
+    '科室': item.department,
+    '门诊预约量': item.outpatientCount,
+    '住院预约量': item.inpatientCount,
+    '体检预约量': item.physicalExamCount,
+    '汇总': item.total
+  })));
+  const wb = xlsx.utils.book_new();
+  xlsx.utils.book_append_sheet(wb, ws, '医技预约来源');
+  xlsx.writeFile(wb, `医技预约来源_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+export async function exportMedExamDetailReport(data: MedicalExamDetailRow[]) {
+  const xlsx = await import('xlsx');
+  const ws = xlsx.utils.json_to_sheet(data.map(item => ({
+    '日期': item.date,
+    '科室': item.department,   // 使用映射后的科室名
+    '项目代码': item.itemCode || '',
+    '检查项目': item.examItem, // 使用映射后的项目名
+    '门诊预约量': item.outpatientCount,
+    '住院预约量': item.inpatientCount,
+    '体检预约量': item.physicalExamCount,
+    '汇总': item.total
+  })));
+  const wb = xlsx.utils.book_new();
+  xlsx.utils.book_append_sheet(wb, ws, '医技检查项目明细');
+  xlsx.writeFile(wb, `医技检查项目明细_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+export async function exportTimeSlotReport(data: TimeSlotDistributionRow[]) {
+  const xlsx = await import('xlsx');
+  const ws = xlsx.utils.json_to_sheet(data.map(item => ({
+    '日期': item.date,
+    '时段': item.timeSlot,
+    '科室': item.department,
+    '医生': item.doctor,
+    '预约量': item.appointmentCount,
+    '就诊量': item.visitCount,
+    '预约就诊率': `${(item.visitRate * 100).toFixed(2)}%`
+  })));
+  const wb = xlsx.utils.book_new();
+  xlsx.utils.book_append_sheet(wb, ws, '挂号预约时段分布');
+  xlsx.writeFile(wb, `挂号预约时段分布_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+export async function exportDoctorRateReport(data: DoctorAppointmentRateRow[]) {
+  const xlsx = await import('xlsx');
+  const ws = xlsx.utils.json_to_sheet(data.map(item => ({
+    '日期': item.date,
+    '科室': item.department,
+    '医生': item.doctor,
+    '开单量': item.orderCount,
+    '预约量': item.appointmentCount,
+    '预约率': `${(item.appointmentRate * 100).toFixed(2)}%`
+  })));
+  const wb = xlsx.utils.book_new();
+  xlsx.utils.book_append_sheet(wb, ws, '科室医生预约率');
+  xlsx.writeFile(wb, `科室医生预约率_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
