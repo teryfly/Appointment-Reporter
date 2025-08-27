@@ -37,7 +37,6 @@ namespace Services
             return await _medicalTechService.GetMedicalTechSourcesAsync(request);
         }
 
-        // 直接返回新结构
         public async Task<MedicalTechItemResponse> GetMedicalTechItemsAsync(MedicalTechItemDetailRequest request)
         {
             return await _medicalTechService.GetMedicalTechItemsV2Async(request);

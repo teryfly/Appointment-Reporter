@@ -21,9 +21,9 @@ namespace Models.Entities
         [Column("ResourceId")]
         public string DoctorId { get; set; } = string.Empty;
 
-        // 放号时间
-        [Column("CreateTime")]
-        public DateTime OccurTime { get; set; }
+        // 放号时间（number_provider.Start：为业务统计口径）
+        [Column("Start")]
+        public DateTime Start { get; set; }
 
         // 号源数量
         [Column("NumberCount")]
@@ -32,5 +32,13 @@ namespace Models.Entities
         // 场景：门诊=01
         [Column("Scene")]
         public string? Scene { get; set; }
+
+        // 保留 OccurTime（映射 CreateTime）兼容旧用法
+        [NotMapped]
+        public DateTime OccurTime
+        {
+            get => Start;
+            set { Start = value; }
+        }
     }
 }
