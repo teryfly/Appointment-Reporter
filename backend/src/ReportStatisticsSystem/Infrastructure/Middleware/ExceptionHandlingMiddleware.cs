@@ -30,14 +30,15 @@ namespace Infrastructure.Middleware
                 context.Response.ContentType = "application/json";
                 context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
 
-                var result = JsonSerializer.Serialize(new
+                var payload = new
                 {
                     success = false,
-                    data = (object)null,
+                    data = (object?)null,
                     total = 0,
                     message = "服务器内部错误"
-                });
+                };
 
+                var result = JsonSerializer.Serialize(payload);
                 await context.Response.WriteAsync(result);
             }
         }

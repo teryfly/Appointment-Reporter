@@ -15,6 +15,7 @@ namespace Infrastructure.Data
         public DbSet<AppointmentNumberEntity> AppointmentNumbers { get; set; }
         public DbSet<AppointmentPropertyEntity> AppointmentProperties { get; set; }
         public DbSet<AppointmentFailedRecordEntity> AppointmentFailedRecords { get; set; }
+        public DbSet<NumberProviderEntity> NumberProviders { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -23,6 +24,7 @@ namespace Infrastructure.Data
             modelBuilder.Entity<AppointmentNumberEntity>().ToTable("appointment_number", "resourcepool");
             modelBuilder.Entity<AppointmentPropertyEntity>().ToTable("appointment_property", "resourcepool");
             modelBuilder.Entity<AppointmentFailedRecordEntity>().ToTable("appointmentfailedrecord", "resourcepool");
+            modelBuilder.Entity<NumberProviderEntity>().ToTable("number_provider", "resourcepool");
         }
     }
 }

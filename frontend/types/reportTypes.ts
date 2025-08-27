@@ -26,11 +26,14 @@ export interface ExamItem {
 export interface OutpatientAppointmentRow {
   id: string;
   date: string;
-  department: string;
-  patientName?: string;      // 新增：患者姓名
-  totalSlots: number;        // 放号量（含加号）
+  orgId: string;
+  orgName: string;
+  doctorId: string;
+  doctorName: string;
+  personnelCount: number;    // 人员数量
+  slotCount: number;         // 放号量
   appointmentCount: number;  // 预约量
-  total?: number;            // 新增：汇总（后端 totalCount）
+  totalCount: number;        // 总数
 }
 
 // 医技预约统计

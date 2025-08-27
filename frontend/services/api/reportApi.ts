@@ -32,18 +32,23 @@ export async function getOutpatientAppointments(params: BaseQueryParams): Promis
     params.orgIds.forEach(id => queryParams.append('OrgIds', id));
   }
 
-  // 映射后端返回到前端表格结构
   const response = await api.get(`/api/reports/outpatient-appointments?${queryParams.toString()}`);
   const rawList: any[] = response.data?.data ?? response.data ?? [];
-  const mapped: OutpatientAppointmentRow[] = (rawList as any[]).map((r, idx) => ({
-    id: r.id ?? `${r.orgId || ''}_${r.patientId || ''}_${r.date || ''}_${idx}`,
+  
+  // 直接映射新的数据结构
+  const mapped: OutpatientAppointmentRow[] = rawList.map((r, idx) => ({
+    id: r.id ?? `${r.orgId}_${r.doctorId}_${r.date}_${idx}`,
     date: r.date,
-    department: r.orgName ?? '',
-    patientName: r.patientName ?? '', // 新增：患者姓名
-    totalSlots: r.slotCount ?? r.totalCount ?? 0, // 放号量
-    appointmentCount: r.appointmentCount ?? 0,   // 预约量
-    total: r.totalCount ?? (r.slotCount ?? 0)    // 汇总
+    orgId: r.orgId,
+    orgName: r.orgName,
+    doctorId: r.doctorId,
+    doctorName: r.doctorName,
+    personnelCount: r.personnelCount ?? 0,
+    slotCount: r.slotCount ?? 0,
+    appointmentCount: r.appointmentCount ?? 0,
+    totalCount: r.totalCount ?? 0,
   }));
+  
   return mapped;
 }
 

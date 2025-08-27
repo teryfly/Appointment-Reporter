@@ -29,12 +29,18 @@ namespace Infrastructure.DependencyInjection
 
             // Services
             services.AddScoped<IReportService, ReportService>();
-            services.AddScoped<IOrganizationService, OrganizationService>();
             services.AddScoped<OutpatientReportService>();
             services.AddScoped<MedicalTechReportService>();
             services.AddScoped<DoctorAnalysisReportService>();
+            services.AddScoped<IOrganizationService, OrganizationService>();
 
-            // Practitioner (FHIR)
+            // External API
+            services.AddScoped<IOrganizationApiClient, OrganizationApiClient>();
+
+            // HttpClientFactory registrations
+            services.AddHttpClient(nameof(OrganizationApiClient));
+
+            // FHIR HttpClient
             services.AddHttpClient("FhirClient", client =>
             {
                 var baseUrl = configuration.GetSection("Fhir")["BaseUrl"] ?? "http://localhost:8080/fhir";
@@ -43,6 +49,7 @@ namespace Infrastructure.DependencyInjection
                 client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
             });
 
+            // Practitioner service (existing)
             services.AddScoped<IPractitionerService>(sp =>
             {
                 var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
@@ -50,19 +57,13 @@ namespace Infrastructure.DependencyInjection
                 return new FhirPractitionerService(http);
             });
 
-            // Patient (FHIR)
-            services.AddScoped<IPatientService>(sp =>
+            // FHIR Lookup service (new)
+            services.AddScoped<IFhirLookupService>(sp =>
             {
                 var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
                 var http = httpClientFactory.CreateClient("FhirClient");
-                return new FhirPatientService(http);
+                return new FhirLookupService(http);
             });
-
-            // External API
-            services.AddScoped<IOrganizationApiClient, OrganizationApiClient>();
-
-            // HttpClientFactory registrations
-            services.AddHttpClient(nameof(OrganizationApiClient));
 
             // Controllers
             services.AddControllers();
