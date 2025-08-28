@@ -16,31 +16,26 @@ const defaultDate = {
   endDate: dayjs() 
 };
 
+// 新列定义：移除“日期”列，仅保留 科室、医生、开单量、预约量、预约率
 const columns = [
-  {
-    title: '日期',
-    dataIndex: 'date',
-    key: 'date',
-    width: 120,
-    fixed: 'left' as const,
-  },
   {
     title: '科室',
     dataIndex: 'department',
     key: 'department',
-    width: 150,
+    width: 180,
+    fixed: 'left' as const,
   },
   {
     title: '医生',
     dataIndex: 'doctor',
     key: 'doctor',
-    width: 120,
+    width: 140,
   },
   {
     title: '开单量',
     dataIndex: 'orderCount',
     key: 'orderCount',
-    width: 100,
+    width: 120,
     align: 'right' as const,
     render: (value: number) => value?.toLocaleString() || 0,
   },
@@ -48,7 +43,7 @@ const columns = [
     title: '预约量',
     dataIndex: 'appointmentCount',
     key: 'appointmentCount',
-    width: 100,
+    width: 120,
     align: 'right' as const,
     render: (value: number) => value?.toLocaleString() || 0,
   },
@@ -56,7 +51,7 @@ const columns = [
     title: '预约率',
     dataIndex: 'appointmentRate',
     key: 'appointmentRate',
-    width: 100,
+    width: 120,
     align: 'right' as const,
     render: (value: number) => `${(value * 100).toFixed(2)}%`,
   },
@@ -79,6 +74,7 @@ const DoctorAppointmentRateReport: React.FC = () => {
       return;
     }
 
+    // 统一将日期转换为 API 需要的格式；页面显示不再按日期分组，仅作为查询条件
     const start =
       dateValue.type === 'month'
         ? dateValue.startDate.startOf('month')
@@ -92,6 +88,8 @@ const DoctorAppointmentRateReport: React.FC = () => {
           ? dateValue.endDate.endOf('year')
           : dateValue.endDate;
 
+    // 根据后台API：doctor-appointment-analysis 支持 StartDate、EndDate、OrgIds、GroupBy
+    // 页面展示按医生维度汇总，传入 GroupBy = 'day' | 'month' | 'year' 由后端聚合；前端不展示日期列
     fetchData({
       startDate: start.format('YYYY-MM-DD'),
       endDate: end.format('YYYY-MM-DD'),
@@ -190,7 +188,7 @@ const DoctorAppointmentRateReport: React.FC = () => {
         columns={columns}
         data={data || []}
         loading={loading}
-        scroll={{ x: 700 }}
+        scroll={{ x: 600 }}
         pagination={{ 
           showSizeChanger: true, 
           showQuickJumper: true,

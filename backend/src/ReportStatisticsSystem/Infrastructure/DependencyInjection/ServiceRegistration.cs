@@ -57,12 +57,20 @@ namespace Infrastructure.DependencyInjection
                 return new FhirPractitionerService(http);
             });
 
-            // FHIR Lookup service (new)
+            // FHIR Lookup service
             services.AddScoped<IFhirLookupService>(sp =>
             {
                 var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
                 var http = httpClientFactory.CreateClient("FhirClient");
                 return new FhirLookupService(http);
+            });
+
+            // FHIR ServiceRequest service
+            services.AddScoped<IFhirServiceRequestService>(sp =>
+            {
+                var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+                var http = httpClientFactory.CreateClient("FhirClient");
+                return new FhirServiceRequestService(http);
             });
 
             // Controllers
@@ -71,7 +79,7 @@ namespace Infrastructure.DependencyInjection
             // Memory cache
             services.AddMemoryCache();
 
-            // CORS: allow local dev frontend (Vite default port 5173/5174/5175 etc.)
+            // CORS
             services.AddCors(options =>
             {
                 options.AddPolicy("FrontendCors", builder =>
@@ -121,7 +129,6 @@ namespace Infrastructure.DependencyInjection
                 return results;
             }
 
-            // No ids: list all via paging
             var list = new List<PractitionerDto>();
             string? nextUrl = "Practitioner?_count=200";
             while (!string.IsNullOrEmpty(nextUrl))

@@ -4,72 +4,69 @@ using System.Linq;
 using System.Threading.Tasks;
 using Models.Requests;
 using Models.Responses;
-using Repositories.Interfaces;
+using Services.Interfaces;
 
 namespace Services.Reports
 {
     public class DoctorAnalysisReportService
     {
-        private readonly IAppointmentRepository _repository;
+        private readonly IFhirServiceRequestService _srService;
+        private readonly IFhirLookupService _lookup;
 
-        public DoctorAnalysisReportService(IAppointmentRepository repository)
+        public DoctorAnalysisReportService(IFhirServiceRequestService srService, IFhirLookupService lookup)
         {
-            _repository = repository;
-        }
-
-        private static string BuildDateKey(DateTime dt, string groupBy)
-        {
-            return groupBy == "year"
-                ? dt.Year.ToString()
-                : groupBy == "month"
-                    ? $"{dt.Year}-{dt.Month:D2}"
-                    : dt.ToString("yyyy-MM-dd");
+            _srService = srService;
+            _lookup = lookup;
         }
 
         public async Task<DoctorAnalysisResponse> GetDoctorAppointmentAnalysisAsync(DoctorAnalysisReportRequest request)
         {
-            var execOrgIds = request.ExecOrgIds ?? request.OrgIds;
-
-            var appointments = await _repository.GetAppointmentsAsync(
-                request.StartDate, request.EndDate, execOrgIds, null, request.ApplyOrgIds);
-
-            // 仅保留有医生ID的记录（appointment.Resource_ResourceId）
-            var filtered = appointments.Where(a => !string.IsNullOrWhiteSpace(a.ResourceResourceId));
-
-            // 指定医生过滤
-            if (request.DoctorIds != null && request.DoctorIds.Count > 0)
+            var filter = new ServiceRequestFilter
             {
-                var idsSet = request.DoctorIds.ToHashSet();
-                filtered = filtered.Where(a => a.ResourceResourceId != null && idsSet.Contains(a.ResourceResourceId));
-            }
+                Start = request.StartDate,
+                End = request.EndDate,
+                ExecOrgIds = request.ExecOrgIds ?? request.OrgIds,
+                DoctorIds = request.DoctorIds
+            };
 
-            var grouped = filtered
-                .GroupBy(a => new
+            var orders = await _srService.CountOrdersAsync(filter);
+            var appointments = await _srService.CountAppointmentsAsync(filter);
+
+            var pairs = new HashSet<(string Dept, string Doc)>(orders.Keys.Select(k => (k.DepartmentId, k.DoctorId)));
+            foreach (var k in appointments.Keys) pairs.Add((k.DepartmentId, k.DoctorId));
+
+            var deptIds = pairs.Select(p => p.Dept).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
+            var docIds = pairs.Select(p => p.Doc).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
+
+            var deptNames = await _lookup.GetOrganizationNamesAsync(deptIds);
+            var docNames = await _lookup.GetPractitionerNamesAsync(docIds);
+
+            var list = new List<DoctorAnalysisItem>();
+            foreach (var (deptId, docId) in pairs.OrderBy(x => x.Dept).ThenBy(x => x.Doc))
+            {
+                var oKey = new ServiceRequestStatKey { DepartmentId = deptId, DoctorId = docId };
+                var ordersCount = orders.TryGetValue(oKey, out var oc) ? oc : 0;
+                var apptCount = appointments.TryGetValue(oKey, out var ac) ? ac : 0;
+
+                var rate = ordersCount > 0 ? Math.Round((double)apptCount / ordersCount * 100, 2) : 0;
+
+                list.Add(new DoctorAnalysisItem
                 {
-                    DateKey = BuildDateKey(a.CreateTime, request.GroupBy),
-                    DoctorId = a.ResourceResourceId ?? "",
-                    DoctorName = a.ResourceResourceName ?? ""
-                })
-                .Select(g => new DoctorAnalysisItem
-                {
-                    Date = g.Key.DateKey,
-                    DoctorId = g.Key.DoctorId,
-                    DoctorName = g.Key.DoctorName,
-                    OrdersCount = g.Count(),
-                    AppointmentCount = g.Count(a => a.Status != "已取消"),
-                    AppointmentRate = g.Count() > 0
-                        ? Math.Round((double)g.Count(a => a.Status != "已取消") / g.Count() * 100, 2)
-                        : 0
-                })
-                .OrderBy(r => r.Date)
-                .ThenBy(r => r.DoctorName)
-                .ToList();
+                    DepartmentId = deptId,
+                    DepartmentName = deptNames.TryGetValue(deptId, out var dn) ? dn : "",
+                    DoctorId = docId,
+                    DoctorName = docNames.TryGetValue(docId, out var pn) ? pn : "",
+                    OrdersCount = ordersCount,
+                    AppointmentCount = apptCount,
+                    AppointmentRate = rate
+                });
+            }
 
             return new DoctorAnalysisResponse
             {
                 Success = true,
-                Data = grouped,
-                Total = grouped.Count,
+                Data = list,
+                Total = list.Count,
                 Message = "查询成功"
             };
         }

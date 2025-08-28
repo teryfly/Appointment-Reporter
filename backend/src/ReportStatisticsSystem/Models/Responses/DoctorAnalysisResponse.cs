@@ -4,12 +4,14 @@ namespace Models.Responses
 {
     public class DoctorAnalysisItem
     {
-        public string Date { get; set; } = string.Empty; // yyyy / yyyy-MM / yyyy-MM-dd
-        public string DoctorId { get; set; } = string.Empty;   // appointment.Resource_ResourceId
-        public string DoctorName { get; set; } = string.Empty; // appointment.Resource_ResourceName
-        public int OrdersCount { get; set; }
-        public int AppointmentCount { get; set; }
-        public double AppointmentRate { get; set; }
+        public string DepartmentId { get; set; } = string.Empty; // ServiceRequest.requester (Organization id)
+        public string DepartmentName { get; set; } = string.Empty;
+        public string DoctorId { get; set; } = string.Empty;     // first Practitioner id from supportingInfo
+        public string DoctorName { get; set; } = string.Empty;
+
+        public int OrdersCount { get; set; }        // total from query 1
+        public int AppointmentCount { get; set; }   // total from query 2
+        public double AppointmentRate { get; set; } // AppointmentCount / OrdersCount * 100 (two decimals)
     }
 
     public class DoctorAnalysisResponse : ReportResponseBase

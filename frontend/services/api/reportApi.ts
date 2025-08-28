@@ -35,7 +35,6 @@ export async function getOutpatientAppointments(params: BaseQueryParams): Promis
   const response = await api.get(`/api/reports/outpatient-appointments?${queryParams.toString()}`);
   const rawList: any[] = response.data?.data ?? response.data ?? [];
   
-  // 直接映射新的数据结构
   const mapped: OutpatientAppointmentRow[] = rawList.map((r, idx) => ({
     id: r.id ?? `${r.orgId}_${r.doctorId}_${r.date}_${idx}`,
     date: r.date,
@@ -114,16 +113,14 @@ export async function getMedicalExamDetails(params: BaseQueryParams & {
     params.itemCodes.forEach(code => queryParams.append('ItemCodes', code));
   }
 
-  // 直接拿到 data 数组并进行字段映射，确保前端显示正确
   const response = await api.get(`/api/reports/medical-tech-items?${queryParams.toString()}`);
   const rawList: any[] = response.data?.data ?? response.data ?? [];
-  // 将后端结构映射为前端表格行
   const mapped: MedicalExamDetailRow[] = (rawList as any[]).map((r, idx) => ({
     id: r.id ?? `${r.orgId || ''}_${r.itemCode || ''}_${r.date || ''}_${idx}`,
     date: r.date,
     orgId: r.orgId,
-    department: r.orgName, // 展示科室名
-    examItem: r.itemName,  // 展示项目名
+    department: r.orgName,
+    examItem: r.itemName,
     itemCode: r.itemCode,
     outpatientCount: r.outpatientCount ?? 0,
     inpatientCount: r.inpatientCount ?? 0,
@@ -155,7 +152,7 @@ export async function getTimeSlotDistributions(params: BaseQueryParams & {
   return data || [];
 }
 
-// 科室医生预约率
+// 科室医生预约率 - 按新API返回结构映射
 export async function getDoctorAppointmentRates(params: BaseQueryParams & {
   doctorIds?: string[];
 }): Promise<DoctorAppointmentRateRow[]> {
@@ -173,8 +170,22 @@ export async function getDoctorAppointmentRates(params: BaseQueryParams & {
     params.doctorIds.forEach(id => queryParams.append('DoctorIds', id));
   }
 
-  const { data } = await api.get(`/api/reports/doctor-appointment-analysis?${queryParams.toString()}`);
-  return data || [];
+  const response = await api.get(`/api/reports/doctor-appointment-analysis?${queryParams.toString()}`);
+  const rawList: any[] = response.data?.data ?? response.data ?? [];
+
+  // 映射后端字段到前端类型
+  const mapped: DoctorAppointmentRateRow[] = rawList.map((r, idx) => ({
+    id: r.id ?? `${r.departmentId || ''}_${r.doctorId || ''}_${idx}`,
+    date: r.date ?? '', // 页面不展示日期，但保持类型兼容
+    department: r.departmentName || '',
+    doctor: r.doctorName || r.doctorId || '',
+    orderCount: r.ordersCount ?? 0,
+    appointmentCount: r.appointmentCount ?? 0,
+    // 后端已是百分比(0-100)，前端统一用小数(0-1)，便于格式化百分号
+    appointmentRate: (typeof r.appointmentRate === 'number') ? (r.appointmentRate / 100) : 0,
+  }));
+
+  return mapped;
 }
 
 // 获取科室列表
@@ -226,8 +237,6 @@ export async function getDoctors(ids?: string[]): Promise<Doctor[]> {
 
 // 获取检查项目列表（模拟数据，实际可能需要额外的API）
 export async function getExamItems(departmentId?: string): Promise<ExamItem[]> {
-  // 这里可以根据需要调用相应的API获取检查项目
-  // 目前返回模拟数据
   const mockData: Record<string, ExamItem[]> = {
     '30700': [
       { code: 'CT001', name: 'CT头部平扫' },
