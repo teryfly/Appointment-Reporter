@@ -16,31 +16,26 @@ const defaultDate = {
   endDate: dayjs() 
 };
 
+// 列：科室，医生，时间，预约量，就诊量，预约就诊率，爽约率
 const columns = [
-  {
-    title: '日期',
-    dataIndex: 'date',
-    key: 'date',
-    width: 120,
-    fixed: 'left' as const,
-  },
-  {
-    title: '时段',
-    dataIndex: 'timeSlot',
-    key: 'timeSlot',
-    width: 120,
-  },
   {
     title: '科室',
     dataIndex: 'department',
     key: 'department',
     width: 150,
+    fixed: 'left' as const,
   },
   {
     title: '医生',
     dataIndex: 'doctor',
     key: 'doctor',
     width: 120,
+  },
+  {
+    title: '时间',
+    dataIndex: 'time',
+    key: 'time',
+    width: 180,
   },
   {
     title: '预约量',
@@ -64,7 +59,15 @@ const columns = [
     key: 'visitRate',
     width: 120,
     align: 'right' as const,
-    render: (value: number) => `${(value * 100).toFixed(2)}%`,
+    render: (value: number) => `${((value ?? 0) * 100).toFixed(2)}%`,
+  },
+  {
+    title: '爽约率',
+    dataIndex: 'noShowRate',
+    key: 'noShowRate',
+    width: 120,
+    align: 'right' as const,
+    render: (value: number | undefined) => value == null ? '-' : `${(value * 100).toFixed(2)}%`,
   },
 ];
 
@@ -120,11 +123,11 @@ const TimeSlotDistributionReport: React.FC = () => {
     setDepartmentId(undefined);
   };
 
-  // 计算汇总数据
+  // 汇总（整体就诊率=总就诊量/总预约量）
   const totalAppointments = data.reduce((sum, item) => sum + (item.appointmentCount || 0), 0);
   const totalVisits = data.reduce((sum, item) => sum + (item.visitCount || 0), 0);
   const overallVisitRate = totalAppointments > 0 ? (totalVisits / totalAppointments) : 0;
-  const timeSlotCount = new Set(data.map(item => item.timeSlot)).size;
+  const doctorCount = new Set(data.map(item => item.doctor)).size;
 
   const canQuery = dateValue.startDate != null && dateValue.endDate != null;
 
@@ -185,7 +188,7 @@ const TimeSlotDistributionReport: React.FC = () => {
               />
             </Col>
             <Col span={6}>
-              <Statistic title="时段数" value={timeSlotCount} />
+              <Statistic title="医生数" value={doctorCount} />
             </Col>
           </Row>
         </div>
@@ -196,7 +199,7 @@ const TimeSlotDistributionReport: React.FC = () => {
         columns={columns}
         data={data || []}
         loading={loading}
-        scroll={{ x: 800 }}
+        scroll={{ x: 900 }}
         pagination={{ 
           showSizeChanger: true, 
           showQuickJumper: true,

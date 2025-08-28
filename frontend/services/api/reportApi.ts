@@ -130,7 +130,7 @@ export async function getMedicalExamDetails(params: BaseQueryParams & {
   return mapped;
 }
 
-// 挂号预约时段分布
+// 挂号预约时段分布（更新：visitCount 使用 totalCount；计算 visitRate / noShowRate）
 export async function getTimeSlotDistributions(params: BaseQueryParams & {
   timeInterval?: 'hour' | 'half-hour';
 }): Promise<TimeSlotDistributionRow[]> {
@@ -148,8 +148,28 @@ export async function getTimeSlotDistributions(params: BaseQueryParams & {
     queryParams.append('TimeInterval', params.timeInterval);
   }
 
-  const { data } = await api.get(`/api/reports/appointment-time-distribution?${queryParams.toString()}`);
-  return data || [];
+  const response = await api.get(`/api/reports/appointment-time-distribution?${queryParams.toString()}`);
+  const rawList: any[] = response.data?.data ?? response.data ?? [];
+
+  const mapped: TimeSlotDistributionRow[] = rawList.map((r, idx) => {
+    const appointment = Number(r.appointmentCount ?? 0);
+    // 按需求：就诊量取 totalCount
+    const visits = Number(r.totalCount ?? 0);
+    const visitRate = appointment > 0 ? visits / appointment : 0; // 0-1
+    const noShowRate = appointment > 0 ? 1 - visitRate : undefined; // 0-1，若无预约量显示为 '-'
+    return {
+      id: r.id ?? `${r.orgId || ''}_${r.doctorId || ''}_${r.date || ''}_${idx}`,
+      time: r.time ?? r.date ?? '',
+      department: r.department ?? r.orgName ?? '',
+      doctor: r.doctor ?? r.doctorName ?? '',
+      appointmentCount: appointment,
+      visitCount: visits,
+      visitRate,
+      noShowRate,
+    };
+  });
+
+  return mapped;
 }
 
 // 科室医生预约率 - 按新API返回结构映射
@@ -173,15 +193,13 @@ export async function getDoctorAppointmentRates(params: BaseQueryParams & {
   const response = await api.get(`/api/reports/doctor-appointment-analysis?${queryParams.toString()}`);
   const rawList: any[] = response.data?.data ?? response.data ?? [];
 
-  // 映射后端字段到前端类型
   const mapped: DoctorAppointmentRateRow[] = rawList.map((r, idx) => ({
     id: r.id ?? `${r.departmentId || ''}_${r.doctorId || ''}_${idx}`,
-    date: r.date ?? '', // 页面不展示日期，但保持类型兼容
+    date: r.date ?? '',
     department: r.departmentName || '',
     doctor: r.doctorName || r.doctorId || '',
     orderCount: r.ordersCount ?? 0,
     appointmentCount: r.appointmentCount ?? 0,
-    // 后端已是百分比(0-100)，前端统一用小数(0-1)，便于格式化百分号
     appointmentRate: (typeof r.appointmentRate === 'number') ? (r.appointmentRate / 100) : 0,
   }));
 

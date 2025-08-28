@@ -70,16 +70,16 @@ export interface MedicalExamDetailRow {
   total: number;        // 对应后端 totalCount
 }
 
-// 挂号预约时段分布
+// 挂号预约时段分布（更新：使用新的返回结构，时间字段统一为 time）
 export interface TimeSlotDistributionRow {
   id: string;
-  date: string;
-  timeSlot: string; // 时段
+  time: string; // 时间（由后端 date 字段直接映射）
   department: string;
   doctor: string;
   appointmentCount: number; // 预约量
   visitCount: number; // 就诊量
-  visitRate: number; // 预约就诊率
+  visitRate: number; // 预约就诊率（0-1）
+  noShowRate?: number; // 爽约率（0-1），后端若未返回则可能为空
 }
 
 // 科室医生预约率

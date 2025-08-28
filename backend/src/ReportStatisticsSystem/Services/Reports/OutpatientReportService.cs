@@ -37,23 +37,34 @@ namespace Services.Reports
                     : dt.ToString("yyyy-MM-dd");
         }
 
+        // Helpers
+        private static bool IsValidAppointmentStatusHelper(string? s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return true;
+            var val = s.Trim();
+            return !(val.Equals("Cancel", StringComparison.OrdinalIgnoreCase)
+                  || val.Equals("Alternate", StringComparison.OrdinalIgnoreCase)
+                  || val.Equals("AlternateFailed", StringComparison.OrdinalIgnoreCase)
+                  || val.Equals("Draft", StringComparison.OrdinalIgnoreCase)
+                  || val.Equals("已取消", StringComparison.OrdinalIgnoreCase));
+        }
+        private static string HourBucketHelper(DateTime dt) => dt.ToString("yyyy-MM-dd HH:00:00");
+
+        // Restored: original endpoint logic for outpatient appointments report
         public async Task<OutpatientReportResponse> GetOutpatientAppointmentsAsync(OutpatientReportRequest request)
         {
             var execOrgIds = request.ExecOrgIds ?? request.OrgIds;
 
-            // 统计口径：
-            // 放号量：直接基于 number_provider 表的数据，按 OrgId 和 DoctorId 分组统计
-            // 预约量：使用 appointment.RequestedStart 字段
+            // 统计时间范围（按天/月/年聚合时用于键格式，不改变查询范围）
             var start = request.StartDate.Date;
             var end = request.EndDate.Date.AddDays(1).AddTicks(-1);
 
-            // 放号量：直接从 number_provider 获取，严格用 Start 字段（已修正为属性映射）
+            // 放号量：number_provider（Scene=01）
             var numberProvidersQuery = _db.NumberProviders.AsNoTracking()
                 .Where(np => np.Scene == "01")
                 .Where(np => np.Start >= start && np.Start <= end)
                 .Where(np => !string.IsNullOrEmpty(np.OrgId) && !string.IsNullOrEmpty(np.DoctorId));
 
-            // 科室过滤
             if (execOrgIds != null && execOrgIds.Count > 0)
             {
                 var orgSet = execOrgIds.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
@@ -62,13 +73,12 @@ namespace Services.Reports
                     var orgId = orgSet[0];
                     numberProvidersQuery = numberProvidersQuery.Where(np => np.OrgId == orgId);
                 }
-                else if (orgSet.Count > 1)
+                else
                 {
                     numberProvidersQuery = numberProvidersQuery.Where(np => orgSet.Contains(np.OrgId));
                 }
             }
 
-            // 获取放号数据
             var slotsRaw = await numberProvidersQuery
                 .Select(np => new
                 {
@@ -79,7 +89,7 @@ namespace Services.Reports
                 })
                 .ToListAsync();
 
-            var slotsDaily = slotsRaw
+            var slotsGrouped = slotsRaw
                 .GroupBy(x => new
                 {
                     x.OrgId,
@@ -95,47 +105,31 @@ namespace Services.Reports
                 })
                 .ToList();
 
-            var slotByKey = slotsDaily.ToDictionary(
-                k => (k.OrgId, k.DoctorId, k.DateKey),
-                v => v.Count);
+            var slotByKey = slotsGrouped.ToDictionary(k => (k.OrgId, k.DoctorId, k.DateKey), v => v.Count);
 
-            // 预约量：门诊 AppointmentType=1，Scene='01'，按 RequestedStart 过滤
+            // 预约量：appointment（AppointmentType=1, Scene='01'，按 RequestedStart）
             var appointmentsQuery = _db.Appointments.AsNoTracking()
                 .Where(a => a.AppointmentType == 1 && a.Scene == "01")
                 .Where(a => a.RequestedStart.HasValue && a.RequestedStart.Value >= start && a.RequestedStart.Value <= end)
                 .Where(a => !string.IsNullOrWhiteSpace(a.OrgId));
 
-            // 执行科室过滤
             if (execOrgIds != null && execOrgIds.Count > 0)
             {
                 var orgSet = execOrgIds.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
-                if (orgSet.Count == 1)
-                {
-                    var orgId = orgSet[0];
-                    appointmentsQuery = appointmentsQuery.Where(a => a.OrgId == orgId);
-                }
-                else if (orgSet.Count > 1)
-                {
-                    appointmentsQuery = appointmentsQuery.Where(a => orgSet.Contains(a.OrgId));
-                }
+                appointmentsQuery = orgSet.Count == 1
+                    ? appointmentsQuery.Where(a => a.OrgId == orgSet[0])
+                    : appointmentsQuery.Where(a => orgSet.Contains(a.OrgId));
             }
-            // 申请科室过滤
+
             var applyOrgIds = request.ApplyOrgIds;
             if (applyOrgIds != null && applyOrgIds.Count > 0)
             {
                 var applySet = applyOrgIds.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
-                if (applySet.Count == 1)
-                {
-                    var applyId = applySet[0];
-                    appointmentsQuery = appointmentsQuery.Where(a => a.ApplyOrgId == applyId);
-                }
-                else if (applySet.Count > 1)
-                {
-                    appointmentsQuery = appointmentsQuery.Where(a => a.ApplyOrgId != null && applySet.Contains(a.ApplyOrgId));
-                }
+                appointmentsQuery = applySet.Count == 1
+                    ? appointmentsQuery.Where(a => a.ApplyOrgId == applySet[0])
+                    : appointmentsQuery.Where(a => a.ApplyOrgId != null && applySet.Contains(a.ApplyOrgId!));
             }
 
-            // 先拉取数据，再分组
             var appointments = await appointmentsQuery
                 .Select(a => new
                 {
@@ -148,6 +142,7 @@ namespace Services.Reports
                 .ToListAsync();
 
             var apptByKey = appointments
+                .Where(a => a.RequestedStart.HasValue && IsValidAppointmentStatusHelper(a.Status))
                 .GroupBy(a => new
                 {
                     a.OrgId,
@@ -156,43 +151,41 @@ namespace Services.Reports
                 })
                 .ToDictionary(
                     g => (g.Key.OrgId, g.Key.DoctorId, g.Key.DateKey),
-                    g => g.Count(appt => appt.Status != "已取消")
+                    g => g.Count()
                 );
 
-            // 合并所有的键（科室+医生+日期组合）
-            var allKeys = new HashSet<(string OrgId, string DoctorId, string DateKey)>(slotByKey.Keys);
-            foreach (var k in apptByKey.Keys) allKeys.Add(k);
+            // 合并键：OrgId + DoctorId + DateKey
+            var keys = new HashSet<(string OrgId, string DoctorId, string DateKey)>(slotByKey.Keys);
+            foreach (var k in apptByKey.Keys) keys.Add(k);
 
-            // 获取 FHIR 中的科室和医生名称
-            var allOrgIds = allKeys.Select(k => k.OrgId).Distinct().ToList();
-            var allDoctorIds = allKeys.Select(k => k.DoctorId).Where(id => !string.IsNullOrWhiteSpace(id)).Distinct().ToList();
+            // 名称映射
+            var allOrgIds = keys.Select(k => k.OrgId).Distinct().ToList();
+            var allDoctorIds = keys.Select(k => k.DoctorId).Where(id => !string.IsNullOrWhiteSpace(id)).Distinct().ToList();
 
             var orgNameMap = await _fhirLookup.GetOrganizationNamesAsync(allOrgIds);
             var doctorNameMap = await _fhirLookup.GetPractitionerNamesAsync(allDoctorIds);
 
-            // 构建结果
             var results = new List<OutpatientReportItem>();
-            foreach (var key in allKeys.OrderBy(k => k.DateKey).ThenBy(k => k.OrgId).ThenBy(k => k.DoctorId))
+            foreach (var k in keys.OrderBy(k => k.DateKey).ThenBy(k => k.OrgId).ThenBy(k => k.DoctorId))
             {
-                var slotCount = slotByKey.TryGetValue(key, out var sc) ? sc : 0;
-                var appointmentCount = apptByKey.TryGetValue(key, out var ac) ? ac : 0;
+                var slotCount = slotByKey.TryGetValue(k, out var sc) ? sc : 0;
+                var apptCount = apptByKey.TryGetValue(k, out var ac) ? ac : 0;
 
-                var orgName = orgNameMap.TryGetValue(key.OrgId, out var on) ? on : "";
-                var doctorName = doctorNameMap.TryGetValue(key.DoctorId, out var dn) ? dn : "";
+                var orgName = orgNameMap.TryGetValue(k.OrgId, out var on) ? on : "";
+                var doctorName = doctorNameMap.TryGetValue(k.DoctorId, out var dn) ? dn : "";
 
-                // 人员数量：有放号或预约数据就计为1个医生
-                var personnel = (slotCount > 0 || appointmentCount > 0) ? 1 : 0;
+                var personnel = (slotCount > 0 || apptCount > 0) ? 1 : 0;
 
                 results.Add(new OutpatientReportItem
                 {
-                    Date = key.DateKey,
-                    OrgId = key.OrgId,
+                    Date = k.DateKey,
+                    OrgId = k.OrgId,
                     OrgName = orgName,
                     PersonnelCount = personnel,
                     SlotCount = slotCount,
-                    AppointmentCount = appointmentCount,
-                    TotalCount = appointmentCount,
-                    DoctorId = key.DoctorId,
+                    AppointmentCount = apptCount,
+                    TotalCount = apptCount, // 与原服务保持一致
+                    DoctorId = k.DoctorId,
                     DoctorName = doctorName
                 });
             }
@@ -206,86 +199,141 @@ namespace Services.Reports
             };
         }
 
+        // New: appointment-time-distribution combined from SQL-1 and SQL-2
         public async Task<OutpatientReportResponse> GetAppointmentTimeDistributionAsync(AppointmentTimeDistributionRequest request)
         {
             var execOrgIds = request.ExecOrgIds ?? request.OrgIds;
 
             var start = request.StartDate.Date;
-            var end = request.EndDate.Date.AddDays(1).AddTicks(-1);
+            var end = request.EndDate.Date.AddDays(1);
 
-            // 使用 RequestedStart 作为统计时间口径，过滤门诊
-            var appointmentsQuery = _db.Appointments.AsNoTracking()
-                .Where(a => a.AppointmentType == 1 && a.Scene == "01")
-                .Where(a => a.RequestedStart.HasValue && a.RequestedStart.Value >= start && a.RequestedStart.Value <= end);
+            // SQL-1：预约量
+            var apptQuery = _db.Appointments.AsNoTracking()
+                .Where(a => a.Scene == "01")
+                .Where(a => a.RequestedStart.HasValue && a.RequestedStart.Value >= start && a.RequestedStart.Value < end);
 
             if (execOrgIds != null && execOrgIds.Count > 0)
             {
                 var orgSet = execOrgIds.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
-                if (orgSet.Count == 1)
-                {
-                    var orgId = orgSet[0];
-                    appointmentsQuery = appointmentsQuery.Where(a => a.OrgId == orgId);
-                }
-                else if (orgSet.Count > 1)
-                {
-                    appointmentsQuery = appointmentsQuery.Where(a => orgSet.Contains(a.OrgId));
-                }
+                apptQuery = orgSet.Count == 1
+                    ? apptQuery.Where(a => a.OrgId == orgSet[0])
+                    : apptQuery.Where(a => orgSet.Contains(a.OrgId));
             }
 
-            var applyOrgIds = request.ApplyOrgIds;
-            if (applyOrgIds != null && applyOrgIds.Count > 0)
-            {
-                var applySet = applyOrgIds.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
-                if (applySet.Count == 1)
-                {
-                    var applyId = applySet[0];
-                    appointmentsQuery = appointmentsQuery.Where(a => a.ApplyOrgId == applyId);
-                }
-                else if (applySet.Count > 1)
-                {
-                    appointmentsQuery = appointmentsQuery.Where(a => a.ApplyOrgId != null && applySet.Contains(a.ApplyOrgId));
-                }
-            }
-
-            var appointments = await appointmentsQuery
+            var apptList = await apptQuery
                 .Select(a => new
                 {
                     a.OrgId,
-                    DoctorId = a.ResourceResourceId ?? "",
-                    DoctorName = a.ResourceResourceName ?? "",
-                    a.SlotStart,
+                    Doctor = a.ResourceResourceName ?? "",
+                    Hour = HourBucketHelper(a.RequestedStart!.Value),
                     a.Status
                 })
                 .ToListAsync();
 
-            var interval = request.TimeInterval;
-            string TimeSlot(DateTime dt) =>
-                interval == "hour" ? dt.ToString("HH:00") : (dt.Minute < 30 ? dt.ToString("HH:00") : dt.ToString("HH:30"));
+            var apptByKey = apptList
+                .Where(a => IsValidAppointmentStatusHelper(a.Status))
+                .GroupBy(a => new { a.OrgId, a.Doctor, a.Hour })
+                .ToDictionary(g => (g.Key.OrgId, g.Key.Doctor, g.Key.Hour), g => g.Count());
 
-            var result = appointments
-                .Where(a => a.SlotStart.HasValue && !string.IsNullOrWhiteSpace(a.DoctorId))
-                .GroupBy(a => new
+            // SQL-2：就诊量（跨库）
+            string orgFilterSql;
+            var sqlParams = new List<object> { start, end };
+
+            if (execOrgIds != null && execOrgIds.Count > 0)
+            {
+                var valid = execOrgIds.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
+                if (valid.Count == 1)
                 {
-                    OrgId = a.OrgId,
-                    DoctorId = a.DoctorId,
-                    DoctorName = a.DoctorName,
-                    TimeSlot = TimeSlot(a.SlotStart!.Value)
+                    orgFilterSql = " AND [qr].[itemCode] = {2}";
+                    sqlParams.Add(valid[0]!);
+                }
+                else
+                {
+                    var inParams = new List<string>();
+                    for (int i = 0; i < valid.Count; i++)
+                    {
+                        inParams.Add($"{{{i + 2}}}");
+                        sqlParams.Add(valid[i]!);
+                    }
+                    orgFilterSql = $" AND [qr].[itemCode] IN ({string.Join(",", inParams)})";
+                }
+            }
+            else
+            {
+                orgFilterSql = string.Empty;
+            }
+
+            var sql = $@"
+SELECT
+  COALESCE([qr].[itemCode], N'') AS [ItemCode],
+  COALESCE([qr].[itemName], N'') AS [ItemName],
+  COALESCE([qr].[doctorname], N'') AS [DoctorName],
+  [qr].[appointmentSourceStartTime] AS [AppointmentSourceStartTime]
+FROM [isp-scheduler].[schedule].[QueueRecords] AS [qr]
+WHERE [qr].[Status] = N'5' AND [qr].[IsDeleted] = 0 AND [qr].[QueueType] = N'01'
+  AND [qr].[appointmentSourceStartTime] >= {{0}} AND [qr].[appointmentSourceStartTime] < {{1}}
+  {orgFilterSql}";
+
+            var rawVisits = await _db.QueueRecordReadModels
+                .FromSqlRaw(sql, sqlParams.ToArray())
+                .AsNoTracking()
+                .Select(q => new
+                {
+                    OrgId = q.ItemCode ?? "",
+                    OrgName = q.ItemName ?? "",
+                    Doctor = q.DoctorName ?? "",
+                    Hour = HourBucketHelper(q.AppointmentSourceStartTime)
                 })
-                .Select(g => new OutpatientReportItem
+                .ToListAsync();
+
+            var visitByKey = rawVisits
+                .GroupBy(v => new { v.OrgId, v.OrgName, v.Doctor, v.Hour })
+                .ToDictionary(g => (g.Key.OrgId, g.Key.OrgName, g.Key.Doctor, g.Key.Hour), g => g.Count());
+
+            // 合并键
+            var keys = new HashSet<(string OrgId, string Doctor, string Hour)>(apptByKey.Keys);
+            foreach (var k in visitByKey.Keys)
+                keys.Add((k.OrgId, k.Doctor, k.Hour));
+
+            // 组织名称映射
+            var orgIds = keys.Select(k => k.OrgId).Distinct().ToList();
+            var orgNameMap = await _fhirLookup.GetOrganizationNamesAsync(orgIds);
+
+            var result = new List<OutpatientReportItem>();
+            foreach (var k in keys.OrderBy(x => x.Hour).ThenBy(x => x.OrgId).ThenBy(x => x.Doctor))
+            {
+                var apptCount = apptByKey.TryGetValue((k.OrgId, k.Doctor, k.Hour), out var aCnt) ? aCnt : 0;
+
+                var orgNameFromVisit = visitByKey.Keys
+                    .Where(vk => vk.OrgId == k.OrgId && vk.Doctor == k.Doctor && vk.Hour == k.Hour)
+                    .Select(vk => vk.OrgName)
+                    .FirstOrDefault();
+
+                var visitCount = visitByKey.TryGetValue((k.OrgId, orgNameFromVisit ?? "", k.Doctor, k.Hour), out var vCnt)
+                    ? vCnt
+                    : 0;
+
+                var orgName = !string.IsNullOrWhiteSpace(orgNameFromVisit)
+                    ? orgNameFromVisit!
+                    : (orgNameMap.TryGetValue(k.OrgId, out var n) ? n : "");
+
+                // 计算率（可由前端展示）
+                // 预约就诊率 = visit/appointment * 100%; 爽约率 = (1 - visit/appointment) * 100%
+                // 若需要直接返回，可扩展响应模型。
+
+                result.Add(new OutpatientReportItem
                 {
-                    OrgId = g.Key.OrgId,
-                    OrgName = "",
-                    Date = g.Key.TimeSlot,
+                    OrgId = k.OrgId,
+                    OrgName = orgName,
+                    Date = k.Hour,
                     PersonnelCount = 1,
-                    SlotCount = g.Count(),
-                    AppointmentCount = g.Count(a => a.Status == "已完成"),
-                    TotalCount = g.Count(),
-                    DoctorId = g.Key.DoctorId,
-                    DoctorName = g.Key.DoctorName
-                })
-                .OrderBy(r => r.OrgId)
-                .ThenBy(r => r.Date)
-                .ToList();
+                    SlotCount = 0,
+                    AppointmentCount = apptCount, // 预约量
+                    TotalCount = visitCount,      // 就诊量
+                    DoctorId = "",
+                    DoctorName = k.Doctor
+                });
+            }
 
             return new OutpatientReportResponse
             {
