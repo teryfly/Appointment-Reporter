@@ -73,6 +73,14 @@ namespace Infrastructure.DependencyInjection
                 return new FhirServiceRequestService(http);
             });
 
+            // FHIR Medical-Tech aggregation service (new)
+            services.AddScoped<FhirMedicalTechAggregationService>(sp =>
+            {
+                var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+                var http = httpClientFactory.CreateClient("FhirClient");
+                return new FhirMedicalTechAggregationService(http);
+            });
+
             // Controllers
             services.AddControllers();
 

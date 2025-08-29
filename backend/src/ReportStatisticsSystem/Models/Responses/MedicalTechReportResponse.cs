@@ -10,10 +10,14 @@ namespace Models.Responses
         public int AppointmentCount { get; set; }
         public int CompletedCount { get; set; }
         public int CancelledCount { get; set; }
+
+        // New optional slot field (日期/时段). If not applicable for legacy responses, remains empty.
+        public string? Slot { get; set; }
     }
 
     public class MedicalTechReportResponse : ReportResponseBase
     {
+        // Keep strong typing to MedicalTechReportItem; service will populate Slot
         public new List<MedicalTechReportItem> Data { get; set; } = new();
     }
 

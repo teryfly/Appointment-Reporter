@@ -29,6 +29,7 @@ namespace Services
 
         public async Task<MedicalTechReportResponse> GetMedicalTechAppointmentsAsync(MedicalTechReportRequest request)
         {
+            // Returns envelope with Data = List<MedicalTechReportWithSlotItem>
             return await _medicalTechService.GetMedicalTechAppointmentsAsync(request);
         }
 

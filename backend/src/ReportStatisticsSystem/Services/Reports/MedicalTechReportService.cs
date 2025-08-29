@@ -6,6 +6,7 @@ using Models.Requests;
 using Models.Responses;
 using Repositories.Interfaces;
 using Services.Interfaces;
+using Services.Fhir;
 
 namespace Services.Reports
 {
@@ -13,49 +14,58 @@ namespace Services.Reports
     {
         private readonly IAppointmentRepository _repository;
         private readonly IOrganizationService _orgService;
+        private readonly FhirMedicalTechAggregationService _fhirAgg;
 
         public MedicalTechReportService(
             IAppointmentRepository repository,
-            IOrganizationService orgService)
+            IOrganizationService orgService,
+            FhirMedicalTechAggregationService fhirAgg)
         {
             _repository = repository;
             _orgService = orgService;
+            _fhirAgg = fhirAgg;
         }
 
         public async Task<MedicalTechReportResponse> GetMedicalTechAppointmentsAsync(MedicalTechReportRequest request)
         {
-            var execOrgIds = request.ExecOrgIds ?? request.OrgIds;
-            var appointments = await _repository.GetAppointmentsAsync(
-                request.StartDate, request.EndDate, execOrgIds, 2, request.ApplyOrgIds);
+            var performerOrgIds = request.ExecOrgIds ?? request.OrgIds;
+
+            var rows = await _fhirAgg.QueryAppointmentsAsync(
+                request.StartDate,
+                request.EndDate,
+                request.GroupBy,
+                performerOrgIds
+            );
 
             var orgs = await _orgService.GetOrganizationsBySceneAsync("02");
-            var examTypes = request.ExamTypes;
+            var orgNameMap = orgs.ToDictionary(o => o.Id, o => o.Name);
 
-            var filtered = appointments
-                .Where(a => string.IsNullOrEmpty(a.ResourceResourceType) || (examTypes == null || examTypes.Contains(a.ResourceResourceType)))
-                .ToList();
+            var wantedCategories = request.ExamTypes?.Where(x => !string.IsNullOrWhiteSpace(x)).ToHashSet()
+                                   ?? new HashSet<string>();
 
-            var result = filtered
-                .GroupBy(a => new { a.ResourceResourceType, a.OrgId })
-                .Select(g =>
+            var items = new List<MedicalTechReportItem>();
+            foreach (var r in rows)
+            {
+                if (wantedCategories.Count > 0 && !wantedCategories.Contains(r.CategoryDisplay))
+                    continue;
+
+                items.Add(new MedicalTechReportItem
                 {
-                    var org = orgs.FirstOrDefault(o => o.Id == g.Key.OrgId);
-                    return new MedicalTechReportItem
-                    {
-                        ExamType = g.Key.ResourceResourceType ?? "",
-                        OrgId = g.Key.OrgId,
-                        OrgName = org?.Name ?? "",
-                        AppointmentCount = g.Count(a => a.Status != "已取消"),
-                        CompletedCount = g.Count(a => a.Status == "已完成"),
-                        CancelledCount = g.Count(a => a.Status == "已取消")
-                    };
-                }).ToList();
+                    Slot = r.Slot, // 新增时段字段：按 groupBy 返回 yyyy / yyyy-MM / yyyy-MM-dd
+                    OrgId = r.DepartmentId,
+                    OrgName = orgNameMap.TryGetValue(r.DepartmentId, out var n) ? n : "",
+                    ExamType = r.CategoryDisplay, // 检查类型使用 display
+                    AppointmentCount = r.Count,
+                    CompletedCount = 0,
+                    CancelledCount = 0
+                });
+            }
 
             return new MedicalTechReportResponse
             {
                 Success = true,
-                Data = result,
-                Total = result.Count,
+                Data = items,
+                Total = items.Count,
                 Message = "查询成功"
             };
         }
@@ -89,12 +99,10 @@ namespace Services.Reports
             };
         }
 
-        // 输出包含：日期、科室、检查项目、门诊/住院/体检预约量与合计；忽略其它 Scene 值
         public async Task<MedicalTechItemResponse> GetMedicalTechItemsV2Async(MedicalTechItemDetailRequest request)
         {
             var execOrgIds = request.ExecOrgIds ?? request.OrgIds;
 
-            // 仅医技预约
             var appointments = await _repository.GetAppointmentsAsync(
                 request.StartDate, request.EndDate, execOrgIds, 2, request.ApplyOrgIds);
 
@@ -115,39 +123,33 @@ namespace Services.Reports
 
             var items = await _repository.GetAppointmentItemsByIdsAsync(appointmentIds);
 
-            // 按项目编码过滤
             var itemCodes = request.ItemCodes?.Where(c => !string.IsNullOrWhiteSpace(c)).Distinct().ToList();
             if (itemCodes != null && itemCodes.Count > 0)
             {
                 items = items.Where(i => i.Code != null && itemCodes.Contains(i.Code)).ToList();
             }
 
-            // 科室名称
             var orgs = await _orgService.GetOrganizationsBySceneAsync("02");
             var orgNameDict = orgs.ToDictionary(o => o.Id, o => o.Name);
 
-            // 预约查找
             var apptLookup = appointments.ToDictionary(a => a.Id, a => a);
 
-            // 分组键格式
             string GroupKey(DateTime dt, string groupBy) =>
                 groupBy == "year" ? dt.Year.ToString()
                 : groupBy == "month" ? $"{dt.Year}-{dt.Month:D2}"
                 : dt.ToString("yyyy-MM-dd");
 
-            // Scene 到三大分类（忽略其余）
             static int CategoryIndex(string? scene)
             {
                 return scene switch
                 {
-                    "01" => 0, // 门诊
-                    "02" => 1, // 住院
-                    "03" => 2, // 体检
-                    _ => -1    // 其它忽略
+                    "01" => 0,
+                    "02" => 1,
+                    "03" => 2,
+                    _ => -1
                 };
             }
 
-            // 展开为基础记录
             var expanded = new List<(string Date, string OrgId, string OrgName, string ItemCode, string ItemName, int CatIndex)>();
             foreach (var it in items)
             {
@@ -155,7 +157,7 @@ namespace Services.Reports
                     continue;
 
                 var idx = CategoryIndex(appt.Scene);
-                if (idx == -1) continue; // 忽略其它编码
+                if (idx == -1) continue;
 
                 var dateKey = GroupKey(appt.CreateTime, request.GroupBy);
                 var orgId = appt.OrgId ?? "";
@@ -164,7 +166,6 @@ namespace Services.Reports
                 expanded.Add((dateKey, orgId, orgName, it.Code ?? "", it.Name ?? "", idx));
             }
 
-            // 聚合：日期 + 科室 + 项目
             var grouped = expanded
                 .GroupBy(x => new { x.Date, x.OrgId, x.OrgName, x.ItemCode, x.ItemName })
                 .Select(g =>
@@ -191,7 +192,6 @@ namespace Services.Reports
                 .ThenBy(r => r.ItemCode)
                 .ToList();
 
-            // 汇总
             var summary = new MedicalTechItemSummary
             {
                 OutpatientTotal = grouped.Sum(x => x.OutpatientCount),

@@ -51,7 +51,7 @@ export async function getOutpatientAppointments(params: BaseQueryParams): Promis
   return mapped;
 }
 
-// 医技预约统计
+// 医技预约统计（更新：slot 字段作为 date，orgName, examType, appointmentCount）
 export async function getMedicalTechAppointments(params: BaseQueryParams & {
   examTypes?: string[];
 }): Promise<MedicalTechAppointmentRow[]> {
@@ -69,8 +69,19 @@ export async function getMedicalTechAppointments(params: BaseQueryParams & {
     params.examTypes.forEach(type => queryParams.append('ExamTypes', type));
   }
 
-  const { data } = await api.get(`/api/reports/medical-tech-appointments?${queryParams.toString()}`);
-  return data || [];
+  const response = await api.get(`/api/reports/medical-tech-appointments?${queryParams.toString()}`);
+  const rawList: any[] = response.data?.data ?? response.data ?? [];
+  
+  // 兼容 slot 字段为日期
+  const mapped: MedicalTechAppointmentRow[] = rawList.map((r, idx) => ({
+    id: r.id ?? `${r.orgId || ''}_${r.examType || ''}_${r.slot || ''}_${idx}`,
+    date: r.slot ?? r.date ?? '', // slot 字段作为日期
+    department: r.orgName ?? r.department ?? '',
+    examType: r.examType ?? '',
+    appointmentCount: r.appointmentCount ?? 0,
+  }));
+
+  return mapped;
 }
 
 // 医技预约来源
