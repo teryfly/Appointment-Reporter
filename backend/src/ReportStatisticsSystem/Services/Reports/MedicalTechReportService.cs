@@ -15,15 +15,18 @@ namespace Services.Reports
         private readonly IAppointmentRepository _repository;
         private readonly IOrganizationService _orgService;
         private readonly FhirMedicalTechAggregationService _fhirAgg;
+        private readonly FhirServiceRequestSourceAggregationService _fhirSourceAgg;
 
         public MedicalTechReportService(
             IAppointmentRepository repository,
             IOrganizationService orgService,
-            FhirMedicalTechAggregationService fhirAgg)
+            FhirMedicalTechAggregationService fhirAgg,
+            FhirServiceRequestSourceAggregationService fhirSourceAgg)
         {
             _repository = repository;
             _orgService = orgService;
             _fhirAgg = fhirAgg;
+            _fhirSourceAgg = fhirSourceAgg;
         }
 
         public async Task<MedicalTechReportResponse> GetMedicalTechAppointmentsAsync(MedicalTechReportRequest request)
@@ -51,10 +54,10 @@ namespace Services.Reports
 
                 items.Add(new MedicalTechReportItem
                 {
-                    Slot = r.Slot, // 新增时段字段：按 groupBy 返回 yyyy / yyyy-MM / yyyy-MM-dd
+                    Slot = r.Slot,
                     OrgId = r.DepartmentId,
                     OrgName = orgNameMap.TryGetValue(r.DepartmentId, out var n) ? n : "",
-                    ExamType = r.CategoryDisplay, // 检查类型使用 display
+                    ExamType = r.CategoryDisplay,
                     AppointmentCount = r.Count,
                     CompletedCount = 0,
                     CancelledCount = 0
@@ -70,31 +73,41 @@ namespace Services.Reports
             };
         }
 
+        // New spec: return flattened rows [{ orgId, orgName, slot, outpatientCount, inpatientCount, physicalExamCount, totalCount }]
         public async Task<MedicalTechSourceReportResponse> GetMedicalTechSourcesAsync(MedicalTechSourceReportRequest request)
         {
-            var execOrgIds = request.ExecOrgIds ?? request.OrgIds;
-            var appointments = await _repository.GetAppointmentsAsync(
-                request.StartDate, request.EndDate, execOrgIds, 2, request.ApplyOrgIds);
+            var performerOrgIds = request.ExecOrgIds ?? request.OrgIds;
 
-            var sources = request.SourceTypes;
+            var rows = await _fhirSourceAgg.AggregateRowsAsync(
+                request.StartDate,
+                request.EndDate,
+                request.GroupBy,
+                performerOrgIds
+            );
 
-            var filtered = appointments
-                .Where(a => string.IsNullOrEmpty(a.Scene) || (sources == null || sources.Contains(a.Scene)))
-                .ToList();
+            // resolve org names via OrganizationService (scene=02)
+            var orgs = await _orgService.GetOrganizationsBySceneAsync("02");
+            var orgNameMap = orgs.ToDictionary(o => o.Id, o => o.Name);
 
-            var result = filtered
-                .GroupBy(a => a.Scene ?? "")
-                .Select(g => new MedicalTechSourceReportItem
-                {
-                    SourceType = g.Key,
-                    AppointmentCount = g.Count(a => a.Status != "已取消")
-                }).ToList();
+            var data = rows.Select(r => new MedicalTechSourceFlatItem
+            {
+                OrgId = r.OrgId,
+                OrgName = orgNameMap.TryGetValue(r.OrgId, out var n) ? n : "",
+                Slot = r.Slot,
+                OutpatientCount = r.Outpatient,
+                InpatientCount = r.Inpatient,
+                PhysicalExamCount = r.PhysicalExam,
+                TotalCount = r.Outpatient + r.Inpatient + r.PhysicalExam
+            })
+            .OrderBy(x => x.OrgId)
+            .ThenBy(x => x.Slot)
+            .ToList();
 
             return new MedicalTechSourceReportResponse
             {
                 Success = true,
-                Data = result,
-                Total = result.Count,
+                Data = data,
+                Total = data.Count,
                 Message = "查询成功"
             };
         }

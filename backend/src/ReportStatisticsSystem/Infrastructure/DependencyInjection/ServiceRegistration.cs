@@ -11,7 +11,6 @@ using Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Net.Http;
-using System.Text.Json;
 using Services.Fhir;
 
 namespace Infrastructure.DependencyInjection
@@ -73,12 +72,20 @@ namespace Infrastructure.DependencyInjection
                 return new FhirServiceRequestService(http);
             });
 
-            // FHIR Medical-Tech aggregation service (new)
+            // FHIR Medical-Tech aggregation service (existing)
             services.AddScoped<FhirMedicalTechAggregationService>(sp =>
             {
                 var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
                 var http = httpClientFactory.CreateClient("FhirClient");
                 return new FhirMedicalTechAggregationService(http);
+            });
+
+            // New: FHIR ServiceRequest source-type aggregation service
+            services.AddScoped<FhirServiceRequestSourceAggregationService>(sp =>
+            {
+                var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+                var http = httpClientFactory.CreateClient("FhirClient");
+                return new FhirServiceRequestSourceAggregationService(http);
             });
 
             // Controllers
@@ -113,7 +120,7 @@ namespace Infrastructure.DependencyInjection
     internal class FhirPractitionerService : IPractitionerService
     {
         private readonly HttpClient _http;
-        private static readonly JsonSerializerOptions JsonOpts = new JsonSerializerOptions
+        private static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new System.Text.Json.JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
         };
@@ -123,12 +130,12 @@ namespace Infrastructure.DependencyInjection
             _http = http;
         }
 
-        public async Task<List<PractitionerDto>> GetPractitionersAsync(List<string>? ids)
+        public async Task<System.Collections.Generic.List<PractitionerDto>> GetPractitionersAsync(System.Collections.Generic.List<string>? ids)
         {
             if (ids != null && ids.Count > 0)
             {
-                var set = new HashSet<string>(ids);
-                var results = new List<PractitionerDto>();
+                var set = new System.Collections.Generic.HashSet<string>(ids);
+                var results = new System.Collections.Generic.List<PractitionerDto>();
                 foreach (var id in set)
                 {
                     var p = await GetOneAsync(id);
@@ -137,7 +144,7 @@ namespace Infrastructure.DependencyInjection
                 return results;
             }
 
-            var list = new List<PractitionerDto>();
+            var list = new System.Collections.Generic.List<PractitionerDto>();
             string? nextUrl = "Practitioner?_count=200";
             while (!string.IsNullOrEmpty(nextUrl))
             {
@@ -145,7 +152,7 @@ namespace Infrastructure.DependencyInjection
                 if (!resp.IsSuccessStatusCode) break;
 
                 await using var stream = await resp.Content.ReadAsStreamAsync();
-                var bundle = await JsonSerializer.DeserializeAsync<FhirBundle>(stream, JsonOpts);
+                var bundle = await System.Text.Json.JsonSerializer.DeserializeAsync<Services.Fhir.FhirBundle>(stream, JsonOpts);
                 if (bundle?.Entry != null)
                 {
                     foreach (var e in bundle.Entry)
@@ -165,14 +172,14 @@ namespace Infrastructure.DependencyInjection
             if (!resp.IsSuccessStatusCode) return null;
 
             await using var stream = await resp.Content.ReadAsStreamAsync();
-            var p = await JsonSerializer.DeserializeAsync<FhirPractitioner>(stream, JsonOpts);
+            var p = await System.Text.Json.JsonSerializer.DeserializeAsync<Services.Fhir.FhirPractitioner>(stream, JsonOpts);
             return Map(p);
         }
 
-        private static PractitionerDto? Map(FhirPractitioner? p)
+        private static PractitionerDto? Map(Services.Fhir.FhirPractitioner? p)
         {
             if (p == null || string.IsNullOrWhiteSpace(p.Id)) return null;
-            var name = FhirMapping.MapHumanName(p);
+            var name = Services.Fhir.FhirMapping.MapHumanName(p);
             return new PractitionerDto { Id = p.Id, Name = name };
         }
     }

@@ -84,7 +84,7 @@ export async function getMedicalTechAppointments(params: BaseQueryParams & {
   return mapped;
 }
 
-// 医技预约来源
+// 医技预约来源（更新：使用 slot 作为日期，total 使用 totalCount）
 export async function getMedicalTechSources(params: BaseQueryParams & {
   sourceTypes?: string[];
 }): Promise<MedicalTechSourceRow[]> {
@@ -102,8 +102,20 @@ export async function getMedicalTechSources(params: BaseQueryParams & {
     params.sourceTypes.forEach(type => queryParams.append('SourceTypes', type));
   }
 
-  const { data } = await api.get(`/api/reports/medical-tech-sources?${queryParams.toString()}`);
-  return data || [];
+  const response = await api.get(`/api/reports/medical-tech-sources?${queryParams.toString()}`);
+  const rawList: any[] = response.data?.data ?? response.data ?? [];
+
+  const mapped: MedicalTechSourceRow[] = rawList.map((r, idx) => ({
+    id: r.id ?? `${r.orgId || ''}_${r.slot || ''}_${idx}`,
+    date: r.slot ?? r.date ?? '',
+    department: r.orgName ?? r.department ?? '',
+    outpatientCount: r.outpatientCount ?? 0,
+    inpatientCount: r.inpatientCount ?? 0,
+    physicalExamCount: r.physicalExamCount ?? 0,
+    total: r.totalCount ?? (r.outpatientCount ?? 0) + (r.inpatientCount ?? 0) + (r.physicalExamCount ?? 0),
+  }));
+
+  return mapped;
 }
 
 // 医技检查项目明细

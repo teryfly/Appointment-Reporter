@@ -37,7 +37,7 @@ export async function exportMedTechReport(data: MedicalTechAppointmentRow[]) {
 export async function exportMedTechSourceReport(data: MedicalTechSourceRow[]) {
   const xlsx = await import('xlsx');
   const ws = xlsx.utils.json_to_sheet(data.map(item => ({
-    '日期': item.date,
+    '日期': item.date, // 使用 slot 映射后的 date
     '科室': item.department,
     '门诊预约量': item.outpatientCount,
     '住院预约量': item.inpatientCount,
@@ -69,8 +69,7 @@ export async function exportMedExamDetailReport(data: MedicalExamDetailRow[]) {
 export async function exportTimeSlotReport(data: TimeSlotDistributionRow[]) {
   const xlsx = await import('xlsx');
   const ws = xlsx.utils.json_to_sheet(data.map(item => ({
-    '日期': item.date,
-    '时段': item.timeSlot,
+    '时间': item.time,
     '科室': item.department,
     '医生': item.doctor,
     '预约量': item.appointmentCount,
