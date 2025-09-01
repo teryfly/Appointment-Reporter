@@ -88,6 +88,14 @@ namespace Infrastructure.DependencyInjection
                 return new FhirServiceRequestSourceAggregationService(http);
             });
 
+            // New: FHIR Medical-Tech item aggregation service
+            services.AddScoped<FhirMedicalTechItemAggregationService>(sp =>
+            {
+                var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+                var http = httpClientFactory.CreateClient("FhirClient");
+                return new FhirMedicalTechItemAggregationService(http);
+            });
+
             // Controllers
             services.AddControllers();
 
@@ -130,7 +138,7 @@ namespace Infrastructure.DependencyInjection
             _http = http;
         }
 
-        public async Task<System.Collections.Generic.List<PractitionerDto>> GetPractitionersAsync(System.Collections.Generic.List<string>? ids)
+        public async System.Threading.Tasks.Task<System.Collections.Generic.List<PractitionerDto>> GetPractitionersAsync(System.Collections.Generic.List<string>? ids)
         {
             if (ids != null && ids.Count > 0)
             {
@@ -166,7 +174,7 @@ namespace Infrastructure.DependencyInjection
             return list;
         }
 
-        private async Task<PractitionerDto?> GetOneAsync(string id)
+        private async System.Threading.Tasks.Task<PractitionerDto?> GetOneAsync(string id)
         {
             using var resp = await _http.GetAsync($"Practitioner/{Uri.EscapeDataString(id)}");
             if (!resp.IsSuccessStatusCode) return null;

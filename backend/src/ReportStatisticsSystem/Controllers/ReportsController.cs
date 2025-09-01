@@ -67,7 +67,6 @@ namespace Controllers
             return Ok(result);
         }
 
-        // Now returns department and doctor based on FHIR ServiceRequest stats
         [HttpGet("doctor-appointment-analysis")]
         public async Task<IActionResult> GetDoctorAppointmentAnalysis([FromQuery] DoctorAnalysisReportRequest request)
         {

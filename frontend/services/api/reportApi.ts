@@ -118,7 +118,7 @@ export async function getMedicalTechSources(params: BaseQueryParams & {
   return mapped;
 }
 
-// 医技检查项目明细
+// 医技检查项目明细 - 适配包含 summary 的新返回结构
 export async function getMedicalExamDetails(params: BaseQueryParams & {
   itemCodes?: string[];
 }): Promise<MedicalExamDetailRow[]> {
@@ -137,19 +137,46 @@ export async function getMedicalExamDetails(params: BaseQueryParams & {
   }
 
   const response = await api.get(`/api/reports/medical-tech-items?${queryParams.toString()}`);
-  const rawList: any[] = response.data?.data ?? response.data ?? [];
+  // 新模型：{ data: [...], summary: {...}, success, total, message }
+  const payload = response.data ?? {};
+  const rawList: any[] = Array.isArray(payload.data) ? payload.data : (Array.isArray(response.data) ? response.data : []);
+
   const mapped: MedicalExamDetailRow[] = (rawList as any[]).map((r, idx) => ({
     id: r.id ?? `${r.orgId || ''}_${r.itemCode || ''}_${r.date || ''}_${idx}`,
-    date: r.date,
+    date: r.date ?? '',
     orgId: r.orgId,
-    department: r.orgName,
-    examItem: r.itemName,
-    itemCode: r.itemCode,
-    outpatientCount: r.outpatientCount ?? 0,
-    inpatientCount: r.inpatientCount ?? 0,
-    physicalExamCount: r.physicalExamCount ?? 0,
-    total: r.totalCount ?? (r.outpatientCount ?? 0) + (r.inpatientCount ?? 0) + (r.physicalExamCount ?? 0),
+    department: r.orgName ?? r.department ?? '',
+    examItem: r.itemName ?? '',
+    itemCode: r.itemCode ?? '',
+    outpatientCount: Number(r.outpatientCount ?? 0),
+    inpatientCount: Number(r.inpatientCount ?? 0),
+    physicalExamCount: Number(r.physicalExamCount ?? 0),
+    total: Number(r.totalCount ?? (r.outpatientCount ?? 0) + (r.inpatientCount ?? 0) + (r.physicalExamCount ?? 0)),
   }));
+
+  // 可选：将后端 summary 行追加为最后一行（便于前端直接展示），保持与表结构一致
+  // 若不需要在表格中展示汇总行，可删除以下 block
+  if (payload.summary && typeof payload.summary === 'object') {
+    const s = payload.summary as {
+      outpatientTotal?: number;
+      inpatientTotal?: number;
+      physicalExamTotal?: number;
+      grandTotal?: number;
+    };
+    mapped.push({
+      id: 'summary',
+      date: '汇总',
+      orgId: '',
+      department: '',
+      examItem: '',
+      itemCode: '',
+      outpatientCount: Number(s.outpatientTotal ?? 0),
+      inpatientCount: Number(s.inpatientTotal ?? 0),
+      physicalExamCount: Number(s.physicalExamTotal ?? 0),
+      total: Number(s.grandTotal ?? 0),
+    });
+  }
+
   return mapped;
 }
 
