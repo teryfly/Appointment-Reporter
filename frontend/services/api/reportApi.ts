@@ -8,8 +8,7 @@ import type {
   DoctorAppointmentRateRow,
   Organization,
   Doctor,
-  ExamItem,
-  ReportQueryParams
+  ExamItem
 } from '../../types/reportTypes';
 
 // 通用查询参数接口
@@ -33,7 +32,7 @@ export async function getOutpatientAppointments(params: BaseQueryParams): Promis
   }
 
   const response = await api.get(`/api/reports/outpatient-appointments?${queryParams.toString()}`);
-  const rawList: any[] = response.data?.data ?? response.data ?? [];
+  const rawList: any[] = (response as any).data?.data ?? (response as any).data ?? [];
   
   const mapped: OutpatientAppointmentRow[] = rawList.map((r, idx) => ({
     id: r.id ?? `${r.orgId}_${r.doctorId}_${r.date}_${idx}`,
@@ -70,12 +69,11 @@ export async function getMedicalTechAppointments(params: BaseQueryParams & {
   }
 
   const response = await api.get(`/api/reports/medical-tech-appointments?${queryParams.toString()}`);
-  const rawList: any[] = response.data?.data ?? response.data ?? [];
+  const rawList: any[] = (response as any).data?.data ?? (response as any).data ?? [];
   
-  // 兼容 slot 字段为日期
   const mapped: MedicalTechAppointmentRow[] = rawList.map((r, idx) => ({
     id: r.id ?? `${r.orgId || ''}_${r.examType || ''}_${r.slot || ''}_${idx}`,
-    date: r.slot ?? r.date ?? '', // slot 字段作为日期
+    date: r.slot ?? r.date ?? '',
     department: r.orgName ?? r.department ?? '',
     examType: r.examType ?? '',
     appointmentCount: r.appointmentCount ?? 0,
@@ -103,7 +101,7 @@ export async function getMedicalTechSources(params: BaseQueryParams & {
   }
 
   const response = await api.get(`/api/reports/medical-tech-sources?${queryParams.toString()}`);
-  const rawList: any[] = response.data?.data ?? response.data ?? [];
+  const rawList: any[] = (response as any).data?.data ?? (response as any).data ?? [];
 
   const mapped: MedicalTechSourceRow[] = rawList.map((r, idx) => ({
     id: r.id ?? `${r.orgId || ''}_${r.slot || ''}_${idx}`,
@@ -137,9 +135,8 @@ export async function getMedicalExamDetails(params: BaseQueryParams & {
   }
 
   const response = await api.get(`/api/reports/medical-tech-items?${queryParams.toString()}`);
-  // 新模型：{ data: [...], summary: {...}, success, total, message }
-  const payload = response.data ?? {};
-  const rawList: any[] = Array.isArray(payload.data) ? payload.data : (Array.isArray(response.data) ? response.data : []);
+  const payload = (response as any).data ?? {};
+  const rawList: any[] = Array.isArray(payload.data) ? payload.data : (Array.isArray((response as any).data) ? (response as any).data : []);
 
   const mapped: MedicalExamDetailRow[] = (rawList as any[]).map((r, idx) => ({
     id: r.id ?? `${r.orgId || ''}_${r.itemCode || ''}_${r.date || ''}_${idx}`,
@@ -154,8 +151,6 @@ export async function getMedicalExamDetails(params: BaseQueryParams & {
     total: Number(r.totalCount ?? (r.outpatientCount ?? 0) + (r.inpatientCount ?? 0) + (r.physicalExamCount ?? 0)),
   }));
 
-  // 可选：将后端 summary 行追加为最后一行（便于前端直接展示），保持与表结构一致
-  // 若不需要在表格中展示汇总行，可删除以下 block
   if (payload.summary && typeof payload.summary === 'object') {
     const s = payload.summary as {
       outpatientTotal?: number;
@@ -199,14 +194,13 @@ export async function getTimeSlotDistributions(params: BaseQueryParams & {
   }
 
   const response = await api.get(`/api/reports/appointment-time-distribution?${queryParams.toString()}`);
-  const rawList: any[] = response.data?.data ?? response.data ?? [];
+  const rawList: any[] = (response as any).data?.data ?? (response as any).data ?? [];
 
   const mapped: TimeSlotDistributionRow[] = rawList.map((r, idx) => {
     const appointment = Number(r.appointmentCount ?? 0);
-    // 按需求：就诊量取 totalCount
     const visits = Number(r.totalCount ?? 0);
-    const visitRate = appointment > 0 ? visits / appointment : 0; // 0-1
-    const noShowRate = appointment > 0 ? 1 - visitRate : undefined; // 0-1，若无预约量显示为 '-'
+    const visitRate = appointment > 0 ? visits / appointment : 0;
+    const noShowRate = appointment > 0 ? 1 - visitRate : undefined;
     return {
       id: r.id ?? `${r.orgId || ''}_${r.doctorId || ''}_${r.date || ''}_${idx}`,
       time: r.time ?? r.date ?? '',
@@ -241,7 +235,7 @@ export async function getDoctorAppointmentRates(params: BaseQueryParams & {
   }
 
   const response = await api.get(`/api/reports/doctor-appointment-analysis?${queryParams.toString()}`);
-  const rawList: any[] = response.data?.data ?? response.data ?? [];
+  const rawList: any[] = (response as any).data?.data ?? (response as any).data ?? [];
 
   const mapped: DoctorAppointmentRateRow[] = rawList.map((r, idx) => ({
     id: r.id ?? `${r.departmentId || ''}_${r.doctorId || ''}_${idx}`,

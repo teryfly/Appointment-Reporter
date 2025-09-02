@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5261';
+const baseURL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:5261';
 
 export const api = axios.create({
   baseURL,
@@ -26,16 +26,13 @@ api.interceptors.response.use(
   (response) => {
     console.log('API Response:', response.status, response.config.url, response.data);
     
-    // 检查响应数据结构
     if (response.data && typeof response.data === 'object') {
-      // 如果有success字段且为false，抛出错误
-      if (response.data.success === false) {
-        return Promise.reject(new Error(response.data.message || '请求失败'));
+      if ((response.data as any).success === false) {
+        return Promise.reject(new Error((response.data as any).message || '请求失败'));
       }
-      // 如果有data字段，返回data；否则返回整个响应数据
       return {
         ...response,
-        data: response.data.data !== undefined ? response.data.data : response.data
+        data: (response.data as any).data !== undefined ? (response.data as any).data : response.data
       };
     }
     
@@ -44,13 +41,12 @@ api.interceptors.response.use(
   (error) => {
     console.error('API Response Error:', error);
     
-    // 处理HTTP错误状态码
     if (error.response) {
       const { status, data } = error.response;
       let message = `请求失败 (${status})`;
       
       if (data && typeof data === 'object') {
-        message = data.message || data.error || message;
+        message = (data as any).message || (data as any).error || message;
       } else if (typeof data === 'string') {
         message = data;
       }
@@ -58,7 +54,6 @@ api.interceptors.response.use(
       return Promise.reject(new Error(message));
     }
     
-    // 处理网络错误
     if (error.request) {
       return Promise.reject(new Error('网络连接失败，请检查网络设置'));
     }

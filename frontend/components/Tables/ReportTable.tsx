@@ -1,13 +1,13 @@
-import React from 'react';
 import { Table, Empty } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 
 interface ReportTableProps<T> {
   columns: ColumnsType<T>;
   data: T[];
   loading?: boolean;
   scroll?: { x?: number; y?: number };
-  pagination?: boolean | object;
+  pagination?: false | TablePaginationConfig;
+  rowClassName?: (record: T, index: number) => string;
 }
 
 function ReportTable<T extends Record<string, any>>({
@@ -15,7 +15,8 @@ function ReportTable<T extends Record<string, any>>({
   data,
   loading = false,
   scroll = { x: 800 },
-  pagination = false
+  pagination = false,
+  rowClassName,
 }: ReportTableProps<T>) {
   return (
     <Table<T>
@@ -30,6 +31,7 @@ function ReportTable<T extends Record<string, any>>({
       size="small"
       bordered
       rowKey={(record) => record.id || Math.random().toString()}
+      rowClassName={rowClassName as any}
     />
   );
 }

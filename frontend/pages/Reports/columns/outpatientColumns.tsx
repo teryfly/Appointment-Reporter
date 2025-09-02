@@ -1,4 +1,3 @@
-import React from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import type { OutpatientAppointmentRow } from '../../../types/reportTypes';
 

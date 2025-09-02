@@ -88,8 +88,6 @@ const DoctorAppointmentRateReport: React.FC = () => {
           ? dateValue.endDate.endOf('year')
           : dateValue.endDate;
 
-    // 根据后台API：doctor-appointment-analysis 支持 StartDate、EndDate、OrgIds、GroupBy
-    // 页面展示按医生维度汇总，传入 GroupBy = 'day' | 'month' | 'year' 由后端聚合；前端不展示日期列
     fetchData({
       startDate: start.format('YYYY-MM-DD'),
       endDate: end.format('YYYY-MM-DD'),
@@ -189,10 +187,10 @@ const DoctorAppointmentRateReport: React.FC = () => {
         data={data || []}
         loading={loading}
         scroll={{ x: 600 }}
-        pagination={{ 
-          showSizeChanger: true, 
+        pagination={{
+          showSizeChanger: true,
           showQuickJumper: true,
-          showTotal: (total) => `共 ${total} 条记录`
+          showTotal: (total: number) => `共 ${total} 条记录`,
         }}
       />
 

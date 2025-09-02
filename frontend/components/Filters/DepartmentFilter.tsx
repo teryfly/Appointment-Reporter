@@ -66,25 +66,24 @@ const DepartmentFilter: React.FC<DepartmentFilterProps> = ({
         allowClear
         loading={loading}
         showSearch
-        filterOption={(input, option) =>
-          (option?.children as string)?.toLowerCase().includes(input.toLowerCase())
-        }
+        filterOption={(input, option) => {
+          const label = (option?.label ?? '') as string;
+          return label.toLowerCase().includes(input.toLowerCase());
+        }}
         notFoundContent={
-          loading 
-            ? <Spin size="small" /> 
-            : loadError 
-              ? `加载失败：${loadError}` 
-              : hasLoaded 
-                ? '暂无数据' 
+          loading
+            ? <Spin size="small" />
+            : loadError
+              ? `加载失败：${loadError}`
+              : hasLoaded
+                ? '暂无数据'
                 : '点击加载科室列表'
         }
-      >
-        {departments.map((d) => (
-          <Select.Option key={d.id} value={d.id} title={`${d.name} (${d.id})`}>
-            {d.name}
-          </Select.Option>
-        ))}
-      </Select>
+        options={departments.map(d => ({
+          label: d.name,
+          value: d.id,
+        }))}
+      />
       {loadError && !loading && (
         <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 4 }}>
           {loadError}

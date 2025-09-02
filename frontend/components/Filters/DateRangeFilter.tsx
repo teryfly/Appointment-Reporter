@@ -1,7 +1,7 @@
 import React from 'react';
 import { DatePicker, Radio, Space } from 'antd';
 import type { RadioChangeEvent } from 'antd';
-import dayjs, { Dayjs } from 'dayjs';
+import type { Dayjs } from 'dayjs';
 
 const { RangePicker } = DatePicker;
 
@@ -25,16 +25,16 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({ value, onChange }) =>
 
   const handleDateChange = (dates: [Dayjs | null, Dayjs | null] | null) => {
     if (dates) {
-      onChange({ 
-        ...value, 
-        startDate: dates[0], 
-        endDate: dates[1] 
+      onChange({
+        ...value,
+        startDate: dates[0],
+        endDate: dates[1],
       });
     } else {
-      onChange({ 
-        ...value, 
-        startDate: null, 
-        endDate: null 
+      onChange({
+        ...value,
+        startDate: null,
+        endDate: null,
       });
     }
   };
